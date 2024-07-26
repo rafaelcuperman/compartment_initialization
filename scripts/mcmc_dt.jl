@@ -74,6 +74,7 @@ posterior_samples = sample(chain[[:D, :t]], n, replace=false);
 
 # Plot solutions for all the sampled parameters
 plt = plot(title="n =  $n")
+plt2 = plot(title="n =  $n")
 for p in eachrow(Array(posterior_samples))
     sample_D, sample_t = p
 
@@ -88,16 +89,24 @@ for p in eachrow(Array(posterior_samples))
     I_[1,4] = 1/60
 
     predicted = predict_pk_bjorkman(weight, age, I_, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72));
-    
+
+    # Plot predicted pk centered in t0
+    plot!(plt2, saveat .- sample_t, predicted, alpha=0.5, color="#BBBBBB", label="");
+
     # Plot predicted pk restarting t0 as predicted time (observed times)
     start_observed_values = findfirst(x -> x >= sample_t, saveat);
     plot!(plt, saveat[start_observed_values:end] .- sample_t, predicted[start_observed_values:end], alpha=0.2, color="#BBBBBB", label="")
+
 end
 
 # Plot observed values with observed_times
-scatter!(plt, times, data, color="red", label="Observed values")
+scatter!(plt2, times, data, color="red", label="Observed values")
+display(plt2)
 
+# Plot observed values with observed_times
+scatter!(plt, times, data, color="red", label="Observed values")
 display(plt)
+
 
 ##############################################################################
 ################################# Regression #################################
@@ -126,6 +135,7 @@ chain_lr = hcat(chain_D_lr, chain_t_lr);
 
 # Plot solutions for (dose, time) pairs built with the linear regression
 plt = plot(title="n =  $n")
+plt2 = plot(title="n =  $n")
 for p in eachrow(Array(chain_lr))
     sample_D, sample_t = p
 
@@ -141,13 +151,20 @@ for p in eachrow(Array(chain_lr))
 
     predicted = predict_pk_bjorkman(weight, age, I_, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72));
     
+    # Plot predicted pk centered in t0
+    plot!(plt2, saveat .- sample_t, predicted, alpha=0.5, color="#BBBBBB", label="");
+
     # Plot predicted pk restarting t0 as predicted time (observed times)
     start_observed_values = findfirst(x -> x >= sample_t, saveat);
     plot!(plt, saveat[start_observed_values:end] .- sample_t, predicted[start_observed_values:end], alpha=0.2, color="#BBBBBB", label="")
 end
+
+# Plot observed values with observed_times
+scatter!(plt2, times, data, color="red", label="Observed values")
+display(plt2)
+
 # Plot observed values with observed_times
 scatter!(plt, times, data, color="red", label="Observed values")
-
 display(plt)
 
 ##############################################################################

@@ -50,7 +50,10 @@ function predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=8.9, etas
     cb = generate_dosing_callback(I);
 
     prob = ODEProblem(two_comp!, u0, tspan);
-    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb)
+
+    #https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/
+    # The ODE can become stiff according to simulations, so we use a method to switch when it becomes stiff (AutoTsit5)
+    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), AutoTsit5(Rosenbrock23()), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb, maxiters=1e6)
     y = hcat(sol.u...)'
 
     if σ != 0

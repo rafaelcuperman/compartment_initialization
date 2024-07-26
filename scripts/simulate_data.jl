@@ -4,6 +4,7 @@ using DrWatson
 using Plots
 using DataFrames
 using CSV
+using Printf
 
 # Here you may include files from the source directory
 include(srcdir("bjorkman.jl"));
@@ -26,7 +27,7 @@ saveat_ind = collect(new_dose_time+1:8:48);
 
 Ω = build_omega_matrix();
 etas = sample_etas(Ω)
-etas = zeros(2)
+#etas = zeros(2)
 sigma = 5
 
 y_ind = predict_pk_bjorkman(weight, age, I, saveat_ind; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 72));
@@ -50,7 +51,8 @@ df = DataFrame(id = "subject_1",
                rate = [I[2,3]; fill(missing, length(y_sim))],
                duration = [I[2,4]; fill(missing, length(y_sim))],
                age = age,
-               weight = weight
+               weight = weight,
+               etas = Dict("eta[$i]" => etas[i] for i in eachindex(etas)),
                )
 
 boolean_etas = all(etas .== 0) ? "n" : "y";
