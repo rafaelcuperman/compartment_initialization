@@ -14,7 +14,6 @@ boolean_etas = "y"
 
 # Read data
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
-df=df[[1,2,3,6],:]
 
 data = Float64.(df[2:end, :dv]);
 times = Float64.(df[2:end, :time]);
