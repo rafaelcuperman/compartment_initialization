@@ -5,6 +5,7 @@ authors = ["rafaelcuperman"]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DeepCompartmentModels = "398c52f8-e6e0-45bd-bf73-2340696b0a8e"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
 KernelDensity = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
