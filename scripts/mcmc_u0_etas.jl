@@ -23,9 +23,19 @@ I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4)
 
 scatter(times, data, color="red", label="Observed values")
 
-# Define priors
+# Define and plot priors
 u0_prior = Truncated(Normal(20, 20), 0, 60);
+x = range(0, stop=80, length=1000);
+plt_u0 = plot(x, pdf.(u0_prior, x), title="Sigma prior", label="", yticks=nothing);
+
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
+x = range(-3, stop=3, length=1000);
+y = range(-3, stop=3, length=1000);
+X, Y = [xi for xi in x, _ in y], [yi for _ in x, yi in y];
+Z = [pdf(dist, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
+plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
+
+plot(plt_u0, plt_etas, layout=(2,1), size = (800, 600))
 
 priors = Dict(
     "u01_prior" => u0_prior,

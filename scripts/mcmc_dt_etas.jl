@@ -23,10 +23,26 @@ I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4)
 
 scatter(times, data, color="red", label="Observed values")
 
-# Define priors
-dose_prior = Truncated(Normal(1750, 1000), 1000, 3000);
-time_prior = Truncated(Normal(12, 10), 6, 36);
+# Define and plot priors
+
+#dose_prior = Truncated(Normal(1750, 1000), 1000, 3000);
+dose_prior = Truncated(MixtureModel(map(u -> Normal(u, 10), 1000:250:3000)), 1000, 3000);
+x = range(0, stop=4000, length=1000);
+plt_dose = plot(x, pdf.(dose_prior, x), title="Sigma prior", label="", yticks=nothing);
+
+#time_prior = Truncated(Normal(12, 10), 6, 36);
+time_prior = Truncated(MixtureModel(map(u -> Normal(u, 0.5), 0:6:36)), 0, 36);
+x = range(0, stop=40, length=1000);
+plt_time = plot(x, pdf.(time_prior, x), title="Sigma prior",label="", yticks=nothing);
+
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
+x = range(-3, stop=3, length=1000);
+y = range(-3, stop=3, length=1000);
+X, Y = [xi for xi in x, _ in y], [yi for _ in x, yi in y];
+Z = [pdf(dist, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
+plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
+
+plot(plt_dose, plt_time, plt_etas, layout=(3,1), size = (800, 600))
 
 priors = Dict(
     "dose_prior" => dose_prior,
@@ -66,7 +82,7 @@ end
 model = model_dt(data, times, weight, age, I, priors);
 
 # Sample from model
-chain = sample(model, NUTS(0.65), MCMCSerial(), 1000, 3; progress=true);
+chain = sample(model, NUTS(0.65), MCMCSerial(), 4000, 3; progress=true)
 plot(chain)
 
 
@@ -108,3 +124,7 @@ display(plt2)
 # Plot observed values with observed_times
 scatter!(plt, times, data, color="red", label="Observed values")
 display(plt)
+
+
+
+
