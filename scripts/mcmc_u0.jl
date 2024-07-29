@@ -19,6 +19,10 @@ df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).c
 
 data = Float64.(df[2:end, :dv]);
 times = Float64.(df[2:end, :time]);
+last_time = maximum(df[!, :time]);
+
+age = df[1, :age];
+weight = df[1, :weight];
 
 # Reconstruct dosing matrix
 I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4)
@@ -36,7 +40,7 @@ priors = Dict(
 
     u0_ = [u01, u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, times; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I, times; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, last_time + 10));
 
     data ~ MultivariateNormal(vec(predicted), sigma)
 
@@ -54,7 +58,7 @@ plot(chain)
 # Sample n u0s
 n = 100
 posterior_samples = sample(chain[[:u01, :u02]], n, replace=false);
-saveat = collect(0:0.1:72)
+saveat = collect(0:0.1:last_time + 10)
 
 # Plot solutions for all the sampled parameters
 plt = plot(title="n =  $n")
@@ -64,7 +68,7 @@ for p in eachrow(Array(posterior_samples))
     # Set initial values
     u0_ = [sample_u01, sample_u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, last_time + 10));
 
     # Plot predicted pk
     plot!(plt, saveat, predicted, alpha=0.2, color="#BBBBBB", label="");
@@ -105,7 +109,7 @@ for p in eachrow(Array(chain_lr))
     # Set initial values
     u0_ = [sample_u01, sample_u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=zeros(2), u0=u0_, tspan=(-0.1, last_time + 10));
 
     # Plot predicted pk
     plot!(plt, saveat, predicted, alpha=0.2, color="#BBBBBB", label="");
