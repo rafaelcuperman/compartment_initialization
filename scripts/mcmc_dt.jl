@@ -20,6 +20,10 @@ df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).c
 
 data = Float64.(df[2:end, :dv]);
 times = Float64.(df[2:end, :time]);
+last_time = maximum(df[!, :time]);
+
+age = df[1, :age];
+weight = df[1, :weight];
 
 # Reconstruct dosing matrix
 I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4);
@@ -53,7 +57,7 @@ priors = Dict(
     I_[1,4] = 1/60
 
 
-    predicted = predict_pk_bjorkman(weight, age, I_, times .+ t_, save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I_, times .+ t_, save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, last_time + t_));
 
     data ~ MultivariateNormal(vec(predicted), sigma)
 

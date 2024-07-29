@@ -17,6 +17,10 @@ df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).c
 
 data = Float64.(df[2:end, :dv]);
 times = Float64.(df[2:end, :time]);
+last_time = maximum(df[!, :time]);
+
+age = df[1, :age];
+weight = df[1, :weight];
 
 # Reconstruct dosing matrix
 I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4)
@@ -32,7 +36,7 @@ etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 x = range(-3, stop=3, length=1000);
 y = range(-3, stop=3, length=1000);
 X, Y = [xi for xi in x, _ in y], [yi for _ in x, yi in y];
-Z = [pdf(dist, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
+Z = [pdf(etas_prior, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
 plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
 
 plot(plt_u0, plt_etas, layout=(2,1), size = (800, 600))
@@ -50,7 +54,7 @@ priors = Dict(
 
     u0_ = [u01, u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, times; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I, times; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, last_time + 10));
 
     data ~ MultivariateNormal(vec(predicted), sigma)
 
@@ -68,7 +72,7 @@ plot(chain)
 # Sample n u0s
 n = 100
 posterior_samples = sample(chain[[:u01, :u02, Symbol("etas[1]"), Symbol("etas[2]")]], n, replace=false);
-saveat = collect(0:0.1:72);
+saveat = collect(0:0.1:last_time + 10);
 
 # Plot solutions for all the sampled parameters
 plt = plot(title="n =  $n")
@@ -78,7 +82,7 @@ for p in eachrow(Array(posterior_samples))
     # Set initial values
     u0_ = [sample_u01, sample_u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=[sample_eta1, sample_eta2], u0=u0_, tspan=(-0.1, 72));
+    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=[sample_eta1, sample_eta2], u0=u0_, tspan=(-0.1, last_time + 10));
 
     # Plot predicted pk
     plot!(plt, saveat, predicted, alpha=0.2, color="#BBBBBB", label="");
