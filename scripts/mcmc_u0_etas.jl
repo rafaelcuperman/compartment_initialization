@@ -9,8 +9,8 @@ using StatsPlots
 
 include(srcdir("bjorkman.jl"));
 
-sigma = 5
-boolean_etas = "y"
+sigma = 5;
+boolean_etas = "y";
 
 # Read data
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
@@ -23,14 +23,18 @@ age = df[1, :age];
 weight = df[1, :weight];
 
 # Reconstruct dosing matrix
-I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4)
+I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4);
+cb = generate_dosing_callback(I);
 
-scatter(times, data, color="red", label="Observed values")
+ind = Individual((weight = 70, age = 40), times, data, cb);
+
+# Scatter plot of measurements
+scatter(ind.t, ind.y, color="red", label="Observed values")
 
 # Define and plot priors
 u0_prior = Truncated(Normal(20, 20), 0, 60);
 x = range(0, stop=80, length=1000);
-plt_u0 = plot(x, pdf.(u0_prior, x), title="Sigma prior", label="", yticks=nothing);
+plt_u0 = plot(x, pdf.(u0_prior, x), title="U0 prior", label="", yticks=nothing);
 
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 x = range(-3, stop=3, length=1000);
@@ -47,22 +51,25 @@ priors = Dict(
     "etas_prior" => etas_prior
     );
 
-@model function model_u0(data, times, weight, age, I, priors)
+# Choose pk model
+pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...)
+
+@model function model_u0(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors, args...; kwargs...)
     u01 ~ priors["u01_prior"]
     u02 ~ priors["u02_prior"]
     etas ~ priors["etas_prior"] 
 
     u0_ = [u01, u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, times; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, last_time + 10));
+    predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, last_time + 10), kwargs...)
 
-    data ~ MultivariateNormal(vec(predicted), sigma)
+    ind.y ~ MultivariateNormal(vec(predicted), sigma)
 
     return nothing
 end
 
 # Build model
-model = model_u0(data, times, weight, age, I, priors);
+model = model_u0(pkmodel, ind, I, priors);
 
 # Sample from model
 chain = sample(model, NUTS(0.65), MCMCSerial(), 2000, 3; progress=true);
@@ -82,11 +89,11 @@ for p in eachrow(Array(posterior_samples))
     # Set initial values
     u0_ = [sample_u01, sample_u02]
 
-    predicted = predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=0, etas=[sample_eta1, sample_eta2], u0=u0_, tspan=(-0.1, last_time + 10));
+    predicted = pkmodel(ind, I, saveat; save_idxs=[1], σ=0, etas=[sample_eta1, sample_eta2], u0=u0_, tspan=(-0.1, last_time + 10))
 
     # Plot predicted pk
     plot!(plt, saveat, predicted, alpha=0.2, color="#BBBBBB", label="");
 end
 # Plot observed values
-scatter!(plt, times, data, color="red", label="Observed values")
+scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
 display(plt)
