@@ -1,12 +1,19 @@
 using DeepCompartmentModels
 
 """ Hemophilia PK model based on https://pubmed.ncbi.nlm.nih.gov/22042695/"""
-function bjorkman(weight, age)
+function bjorkman(weight::Real, age::Real)
     CL = @. 193 * (weight/56)^0.8 * (1 - 0.0045*(age - 22)) #mL/h
     V1 = @. 2.22 * (weight/56)^0.95 #L
     Q = 147 #mL/h 
     V2 = @. 0.73 * (weight/56)^0.76 #L
     return CL, V1, Q, V2
+end
+""" Takes an individual as input"""
+function bjorkman(i::BasicIndividual)
+    weight = i.x.weight
+    age = i.x.age
+
+    return bjorkman(weight, age)
 end
 
 """Standardize units to UI, dL, and h from Bjorkman, et al. model"""
@@ -43,17 +50,17 @@ function include_etas_bjorkman(CL, V1, Q, V2; etas=zeros(2))
     return CL, V1, Q, V2
 end
 
-function predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=8.9, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72))
+""" Run model and get pk values""" 
+function predict_pk_bjorkman(weight::Real, age::Real, I::AbstractMatrix, saveat; save_idxs=[1], σ=8.9, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72))
     CL, V1, Q, V2 = bjorkman(weight, age);
     CL, V1, Q, V2 = include_etas_bjorkman(CL, V1, Q, V2, etas=etas)
 
     cb = generate_dosing_callback(I);
-
     prob = ODEProblem(two_comp!, u0, tspan);
 
     #https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/
     # The ODE can become stiff according to simulations, so we use a method to switch when it becomes stiff (AutoTsit5)
-    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), AutoTsit5(Rosenbrock23()), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb, maxiters=1e6)
+    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), AutoTsit5(Rosenbrock23()), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb, maxiters=1e6, force_dtmin=true)
     y = hcat(sol.u...)'
 
     if σ != 0
@@ -66,3 +73,11 @@ function predict_pk_bjorkman(weight, age, I, saveat; save_idxs=[1], σ=8.9, etas
 
     return y
 end;
+
+""" Takes an individual as input"""
+function predict_pk_bjorkman(i::BasicIndividual, I::AbstractMatrix, args...; kwargs...)
+    weight = i.x.weight
+    age = i.x.age
+
+    predict_pk_bjorkman(weight, age, I, args...; kwargs...)
+end
