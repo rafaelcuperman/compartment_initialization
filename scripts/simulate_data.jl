@@ -6,31 +6,36 @@ using DataFrames
 using CSV
 using Printf
 
-# Here you may include files from the source directory
 include(srcdir("bjorkman.jl"));
+include(srcdir("create_df_from_I.jl"));
 
 # Individual data
 weight = 70
 age = 40
 
 # Set dosing callback
-D = 1750
+D = 1750;
 new_dose_time = 12
-I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60];
+#I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60];
+I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60; new_dose_time + 12 2000 2000*60 1/60];
+
+cb = generate_dosing_callback(I);
+ind = Individual((weight = weight, age = age), [], [], cb, id="subject_1");
 
 # Population pk
-saveat_pop = collect(0:0.1:72);
-y_pop = predict_pk_bjorkman(weight, age, I, saveat_pop; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, 72));
+max_time = 72
+saveat_pop = collect(0:0.1:max_time);
+y_pop = predict_pk_bjorkman(ind, I, saveat_pop; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, max_time));
 
 # Individual pk: includes random effects and residual error
-saveat_ind = collect(new_dose_time+1:8:48);
+saveat_ind = collect(new_dose_time+1:4:48);
 
 Ω = build_omega_matrix();
 etas = sample_etas(Ω)
 #etas = zeros(2)
 sigma = 5
 
-y_ind = predict_pk_bjorkman(weight, age, I, saveat_ind; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 72));
+y_ind = predict_pk_bjorkman(ind, I, saveat_ind; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, max_time));
 
 # Plot population model and measurements
 plt = plot(saveat_pop, y_pop, label="Population model");
@@ -43,18 +48,16 @@ plt2 = scatter(observed_times, y_ind, color="red", label="Observed values")
 p = plot(plt, plt2, layout=(2,1))
 display(p)
 
-df = DataFrame(id = "subject_1",
-               time = [0; observed_times],
-               dv = [missing; vec(y_ind)],
-               mdv = [0; fill(1, length(y_sim))],
-               amt = [I[2,2]; fill(missing, length(y_sim))],
-               rate = [I[2,3]; fill(missing, length(y_sim))],
-               duration = [I[2,4]; fill(missing, length(y_sim))],
-               age = age,
-               weight = weight,
-               etas = Dict("eta[$i]" => etas[i] for i in eachindex(etas)),
-               )
+# Number of doses from the recording time on.
+num_doses_rec = 2;
+
+# Reconstruct dosing scheme from the recording time on. The new dose is at t=0 now.
+I_ = I[num_doses_rec:end,:];
+I_[:,1] = I_[:,1] .- I_[1,1];
+
+df = create_df_from_I(ind, y_ind, observed_times, I_, etas);
 
 boolean_etas = all(etas .== 0) ? "n" : "y";
 
-CSV.write(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), df);
+#CSV.write(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), df);
+#savefig(p, plotsdir("bjorkman_sigma=$(sigma)_etas=$(boolean_etas).png"))
