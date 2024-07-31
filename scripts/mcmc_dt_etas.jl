@@ -14,16 +14,17 @@ boolean_etas = "y";
 
 # Read data
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
+df_ = df[df.mdv .== 0, :]; # Remove dosing rows
 
-data = Float64.(df[2:end, :dv]);
-times = Float64.(df[2:end, :time]);
-last_time = maximum(df[!, :time]);
+data = Float64.(df_[!, :dv]);
+times = Float64.(df_[!, :time]);
+last_time = maximum(df_[!, :time]);
 
 age = df[1, :age];
 weight = df[1, :weight];
 
 # Reconstruct dosing matrix
-I = reshape(Float64.(collect(df[1, [:time, :amt, :rate, :duration]])),1,4);
+I = Float64.(Matrix(df[df.mdv .== 1, [:time, :amt, :rate, :duration]]));
 cb = generate_dosing_callback(I);
 
 ind = Individual((weight = 70, age = 40), times, data, cb);
