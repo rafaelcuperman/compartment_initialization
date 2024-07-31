@@ -15,9 +15,9 @@ age = 40
 
 # Set dosing callback
 D = 1750;
-new_dose_time = 12
+new_dose_time = 24
 #I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60];
-I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60; new_dose_time + 12 2000 2000*60 1/60];
+I = [0 D D*60 1/60; 12 D D*60 1/60; new_dose_time 2000 2000*60 1/60; new_dose_time + 12 2000 2000*60 1/60];
 
 cb = generate_dosing_callback(I);
 ind = Individual((weight = weight, age = age), [], [], cb, id="subject_1");
@@ -48,8 +48,8 @@ plt2 = scatter(observed_times, y_ind, color="red", label="Observed values")
 p = plot(plt, plt2, layout=(2,1))
 display(p)
 
-# Number of doses from the recording time on.
-num_doses_rec = 2;
+# Number of doses before the recording time
+num_doses_rec = 3;
 
 # Reconstruct dosing scheme from the recording time on. The new dose is at t=0 now.
 I_ = I[num_doses_rec:end,:];
@@ -59,5 +59,5 @@ df = create_df_from_I(ind, y_ind, observed_times, I_, etas);
 
 boolean_etas = all(etas .== 0) ? "n" : "y";
 
-#CSV.write(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), df);
-#savefig(p, plotsdir("bjorkman_sigma=$(sigma)_etas=$(boolean_etas).png"))
+#CSV.write(datadir("exp_raw", "bjorkman_multi_sigma=$(sigma)_etas=$(boolean_etas).csv"), df);
+#savefig(p, plotsdir("bjorkman_multi_sigma=$(sigma)_etas=$(boolean_etas).png"))
