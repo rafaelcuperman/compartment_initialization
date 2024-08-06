@@ -1,140 +1,41 @@
 using DrWatson
 @quickactivate "compartment-initialization"
 
-using Turing
 using DataFrames
 using CSV
-using Plots
 using StatsPlots
 
+include(srcdir("mcmc_dt_etas.jl"));
 include(srcdir("bjorkman.jl"));
 
-sigma = 5;
-boolean_etas = "y";
-
 # Read data
+sigma = 5;
+boolean_etas = "n";
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
-df_ = df[df.mdv .== 0, :]; # Remove dosing rows
 
-data = Float64.(df_[!, :dv]);
-times = Float64.(df_[!, :time]);
-last_time = maximum(df_[!, :time]);
+ind, I = individual_from_df(df);
 
-age = df[1, :age];
-weight = df[1, :weight];
-
-# Reconstruct dosing matrix
-I = Float64.(Matrix(df[df.mdv .== 1, [:time, :amt, :rate, :duration]]));
-cb = generate_dosing_callback(I);
-
-ind = Individual((weight = 70, age = 40), times, data, cb);
-
-# Scatter plot of measurements
-scatter(ind.t, ind.y, color="red", label="Observed values")
-
-# Define and plot priors
-#dose_prior = Truncated(Normal(1750, 1000), 1000, 3000);
+# Define priors
 dose_prior = Truncated(MixtureModel(map(u -> Normal(u, 10), 1000:250:3000)), 1000, 3000);
-x = range(0, stop=4000, length=1000);
-plt_dose = plot(x, pdf.(dose_prior, x), title="Dose prior", label="", yticks=nothing);
-
-#time_prior = Truncated(Normal(12, 10), 6, 36);
 time_prior = Truncated(MixtureModel(map(u -> Normal(u, 0.5), 0:6:36)), 0, 36);
-x = range(0, stop=40, length=1000);
-plt_time = plot(x, pdf.(time_prior, x), title="Time prior",label="", yticks=nothing);
-
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
-x = range(-3, stop=3, length=1000);
-y = range(-3, stop=3, length=1000);
-X, Y = [xi for xi in x, _ in y], [yi for _ in x, yi in y];
-Z = [pdf(etas_prior, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
-plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
-
-plot(plt_dose, plt_time, plt_etas, layout=(3,1), size = (800, 600))
-
 priors = Dict(
     "dose_prior" => dose_prior,
     "time_prior" => time_prior,
     "etas_prior" => etas_prior
     );
 
+# Plot priors
+plot_priors_dt(priors);
+
 # Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...)
-    
-@model function model_dt(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors, args...; kwargs...)
-    D ~ priors["dose_prior"]
-    t ~ priors["time_prior"]
-    etas ~ priors["etas_prior"] 
+pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
-    # The dosing callback function requires integer values
-    D_ = round(D)
-    t_ = round(t)
-
-    # Regenerate initial dose
-    I_ = copy(I)
-    I_ = vcat([0. 0. 0. 0.], I_)  
-
-    # Shift all the dosing times by t_ (predicted time of second dose) except the initial dose that is at t=0
-    I_[2:end, 1] = I_[2:end, 1] .+ t_
-    I_[1,2] = D_
-    I_[1,3] = D_*60
-    I_[1,4] = 1/60
-
-    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, last_time .+ t_), kwargs...)
-
-    ind.y ~ MultivariateNormal(vec(predicted), sigma)
-
-    return nothing
-end
-
-# Build model
-model = model_dt(pkmodel, ind, I, priors);
-
-# Sample from model
-chain = sample(model, NUTS(0.65), MCMCSerial(), 2000, 3; progress=true)
+# Run MCMC
+chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=3000, chains=3, sigma=5)
 plot(chain)
 
-
-# Sample n Doses and times
-n = 100
-posterior_samples = sample(chain[[:D, :t, Symbol("etas[1]"), Symbol("etas[2]")]], n, replace=false);
-saveat = collect(0:0.1:72);
-
-# Plot solutions for all the sampled parameters
-plt = plot(title="n =  $n")
-plt2 = plot(title="n =  $n")
-for p in eachrow(Array(posterior_samples))
-    sample_D, sample_t, sample_eta1, sample_eta2 = p
-
-    # Regenerate initial dose
-    I_ = copy(I)
-    I_ = vcat([0. 0. 0. 0.], I_)  
-
-    # Shift all the dosing times by t_ (predicted time of second dose) except the initial dose that is at t=0
-    I_[2:end, 1] = I_[2:end, 1] .+ sample_t
-    I_[1,2] = sample_D
-    I_[1,3] = sample_D*60
-    I_[1,4] = 1/60
-
-    predicted = pkmodel(ind, I_, saveat; save_idxs=[1], σ=0, etas=[sample_eta1, sample_eta2], u0=zeros(2), tspan=(-0.1, 72))
-
-    # Plot predicted pk centered in t0
-    plot!(plt2, saveat .- sample_t, predicted, alpha=0.5, color="#BBBBBB", label="");
-
-    # Plot predicted pk restarting t0 as predicted time (observed times)
-    start_observed_values = findfirst(x -> x >= sample_t, saveat);
-    plot!(plt, saveat[start_observed_values:end] .- sample_t, predicted[start_observed_values:end], alpha=0.2, color="#BBBBBB", label="")
-
-end
-
-# Plot observed values with observed_times
-scatter!(plt2, times, data, color="red", label="Observed values")
-display(plt2)
-
-# Plot observed values with observed_times
-scatter!(plt, times, data, color="red", label="Observed values")
-display(plt)
-
-
-
-
+# Sample from chain and recreate curves
+list_predicted, times, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100);
+display(plt_restarted)
+display(plt_centered)
