@@ -99,6 +99,6 @@ function individual_from_df(df)
     I = Float64.(Matrix(df[df.mdv .== 1, [:time, :amt, :rate, :duration]]));
     cb = generate_dosing_callback(I);
     
-    ind = Individual((weight = 70, age = 40), times, data, cb);
+    ind = Individual((weight = weight, age = age), times, data, cb);
     return ind, I
 end
