@@ -4,9 +4,11 @@ using DrWatson
 using DataFrames
 using CSV
 using StatsPlots
+using GLM
 
 include(srcdir("mcmc_u0_etas.jl"));
 include(srcdir("bjorkman.jl"));
+include(srcdir("aux_plots.jl"));
 
 # Read data
 df = CSV.read(datadir("exp_pro", "bjorkman_population_1h.csv"), DataFrame);
@@ -27,79 +29,72 @@ plot_priors_u0(priors);
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC for each patient
-mapes = []
+mes = []
 maes = []
 average_preds = []
 observeds = []
+ts = []
 for (ix, i) in enumerate(unique(df.id))
-    if ix == 10
-        break
-    end    
+    #if ix == 5
+    #    break
+    #end    
 
-    println("$i/$(length(unique(df.id)))")
+    println("$ix/$(length(unique(df.id)))")
 
     df_ = filter(row -> row.id == i, df)
     ind, I = individual_from_df(df_);
 
     # Run MCMC
-    chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=1000, chains=1, sigma=5)
+    chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
 
-    # Sample from chain and recreate curves
-    list_predicted, times, _ = sample_posterior(chain, ind, I; n=100);
+    # Sample from chain and recreate n curves
+    list_predicted, times, _ = sample_posterior(chain, ind, I; n=100, saveat=ind.t);
 
-    # Take average prediction for all times
-    average_vector = mean.(reduce((x, y) -> x .+ y, list_predicted) ./ length(list_predicted));
+    # Take average prediction of all times across the n curves
+    average_vector = vec(mean.(reduce((x, y) -> x .+ y, list_predicted) ./ length(list_predicted)));
 
-    # Get the indices of the times where there are observations
-    indices = vcat([findall(y -> y == element, times) for element in ind.t]...);
+    # Save time
+    ts = ind.t
 
-    # Get the average prediction where there are observations
-    average_vector = average_vector[indices];
+    # Save average predictions
     push!(average_preds, average_vector)
 
     # Save observed values
     push!(observeds, ind.y)
 
-    # Calculate MAPE
-    mape = mean(abs.((ind.y .- average_vector) ./ ind.y))
-    push!(mapes, mape)
+    # Calculate ME
+    me = mean(ind.y .- average_vector)
+    push!(mes, me)
 
     # Calculate MAE
     mae = mean(abs.(ind.y .- average_vector))
     push!(maes, mae)
 end
 
-plt = scatter(vcat(average_preds...), vcat(observeds...), markersize=2, color="black",  label="", xlabel="Predicted", ylabel="Observed")
-
-max_r2=ceil(max(maximum(maximum(observeds)), maximum(maximum(average_preds))));
-plot!(plt, [0, max_r2], [0, max_r2], label="", color="red", )
-
-
-"""
-i = 2
-# Run MCMC
-chain = run_chain(pkmodel, inds[i], Is[i], priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=5)
-plot(chain)
-
-# Sample from chain and recreate curves
-list_predicted, times, plt = sample_posterior(chain, inds[i], Is[i]; n=100);
+# Plot goodness of fit
+plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
 display(plt)
+savefig(plt, datadir("sims", "goodness-of-fit_1h.png"))
 
-# Take average prediction for all times
-average_vector = mean.(reduce((x, y) -> x .+ y, list_predicted) ./ length(list_predicted));
+# Display average MAE and ME for all patients
+mean_mae = mean(maes);
+std_mae = std(maes);
 
-# Get the indices of the times where there are observations
-indices = vcat([findall(y -> y == element, times) for element in inds[i].t]...);
+mean_me = mean(mes);
+std_me = std(mes);
 
-# Get the average prediction where there are observations
-average_vector = average_vector[indices];
+df_results = DataFrame(mean_mae=mean_mae,
+                        std_mae=std_mae,
+                        mean_me=mean_me,
+                        std_me=std_me
+                        )
+println(df_results)
+CSV.write(datadir("sims", "errors_1h.csv"), df_results);
 
-mean(abs.((inds[i].y .- average_vector) ./ inds[i].y))
 
-plt = scatter(inds[i].t,  inds[i].y)
-
-plot!(plt, times, average_vector)
-display(plt)
-
-scatter(inds[i].t, inds[i].y)
-"""
+# Add the lists element-wise using list comprehensions
+errors = [observeds[i] .- average_preds[i] for i in eachindex(observeds)];
+mean_errors = mean(errors);
+std_errors = std(errors);
+plt = plot(ts, mean_errors, ribbon=(std_errors, std_errors), xlabel="Time", ylabel="Error", label="")
+savefig(plt, datadir("sims", "errors.png"))

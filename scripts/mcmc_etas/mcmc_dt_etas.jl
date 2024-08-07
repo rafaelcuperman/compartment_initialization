@@ -36,6 +36,6 @@ chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=3000, chains=3
 plot(chain)
 
 # Sample from chain and recreate curves
-list_predicted, times, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100);
+list_predicted, times, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100, saveat=0.1);
 display(plt_restarted)
 display(plt_centered)

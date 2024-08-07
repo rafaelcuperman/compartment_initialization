@@ -12,7 +12,7 @@ include(srcdir("create_df_from_I.jl"));
 
 # Read population data
 df = CSV.read(datadir("exp_raw", "dcm/population_data.csv"), DataFrame);
-df = first(df, 30);
+df = first(df, 30); # First n patients
 
 # Random effects
 Ω = build_omega_matrix();

@@ -44,10 +44,11 @@ function run_chain(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, p
 end
 
 # Sample n items from the posterior and simulate the curves
-function sample_posterior(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int=100)
+function sample_posterior(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int=100, saveat=ind.t)
     # Sample n u0s
     posterior_samples = sample(chain[[:u01, :u02, Symbol("etas[1]"), Symbol("etas[2]")]], n, replace=false);
-    saveat = collect(0:0.1:ind.t[end] + 10);
+
+    saveat = saveat isa AbstractVector ? saveat : collect(0:saveat:ind.t[end] + 10);
 
     list_predicted = []
     # Plot solutions for all the sampled parameters
