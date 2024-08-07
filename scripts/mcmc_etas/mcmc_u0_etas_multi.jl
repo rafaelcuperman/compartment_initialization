@@ -29,23 +29,30 @@ plot_priors_u0(priors);
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC for each patient
+between_dose=1; #Time between dose for measurments used for MCMC
+
 mes = []
 maes = []
 average_preds = []
 observeds = []
 ts = []
 for (ix, i) in enumerate(unique(df.id))
-    #if ix == 5
+    #if ix == 3
     #    break
     #end    
 
     println("$ix/$(length(unique(df.id)))")
 
+    # Filter patient if
     df_ = filter(row -> row.id == i, df)
     ind, I = individual_from_df(df_);
 
+    # Filter observations that will be used for MCMC. The rest are used only for evaluation
+    df_use = filter(row -> (row.mdv == 1) .| (row.time ∈ 1:between_dose:ind.t[end]), df_);
+    ind_use, I_use = individual_from_df(df_use);
+
     # Run MCMC
-    chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
+    chain = run_chain(pkmodel, ind_use, I_use, priors; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
 
     # Sample from chain and recreate n curves
     list_predicted, times, _ = sample_posterior(chain, ind, I; n=100, saveat=ind.t);
@@ -74,7 +81,7 @@ end
 # Plot goodness of fit
 plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
 display(plt)
-savefig(plt, datadir("sims", "goodness-of-fit_1h.png"))
+savefig(plt, datadir("sims", "goodness-of-fit_$(between_dose)h.png"))
 
 # Display average MAE and ME for all patients
 mean_mae = mean(maes);
@@ -87,9 +94,9 @@ df_results = DataFrame(mean_mae=mean_mae,
                         std_mae=std_mae,
                         mean_me=mean_me,
                         std_me=std_me
-                        )
+                        );
 println(df_results)
-CSV.write(datadir("sims", "errors_1h.csv"), df_results);
+CSV.write(datadir("sims", "errors_$(between_dose)h.csv"), df_results);
 
 
 # Add the lists element-wise using list comprehensions
@@ -97,4 +104,4 @@ errors = [observeds[i] .- average_preds[i] for i in eachindex(observeds)];
 mean_errors = mean(errors);
 std_errors = std(errors);
 plt = plot(ts, mean_errors, ribbon=(std_errors, std_errors), xlabel="Time", ylabel="Error", label="")
-savefig(plt, datadir("sims", "errors.png"))
+savefig(plt, datadir("sims", "errors_$(between_dose)h.png"))
