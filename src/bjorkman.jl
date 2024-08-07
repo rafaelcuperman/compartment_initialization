@@ -1,3 +1,6 @@
+using DrWatson
+@quickactivate "compartment-initialization"
+
 using DeepCompartmentModels
 
 """ Hemophilia PK model based on https://pubmed.ncbi.nlm.nih.gov/22042695/"""
@@ -80,4 +83,22 @@ function predict_pk_bjorkman(i::BasicIndividual, I::AbstractMatrix, args...; kwa
     age = i.x.age
 
     predict_pk_bjorkman(weight, age, I, args...; kwargs...)
+end
+
+""" Creates an individual from a df"""
+function individual_from_df(df)
+    df_ = df[df.mdv .== 0, :]; # Remove dosing rows
+
+    data = Float64.(df_[!, :dv]);
+    times = Float64.(df_[!, :time]);
+    
+    age = df[1, :age];
+    weight = df[1, :weight];
+    
+    # Reconstruct dosing matrix
+    I = Float64.(Matrix(df[df.mdv .== 1, [:time, :amt, :rate, :duration]]));
+    cb = generate_dosing_callback(I);
+    
+    ind = Individual((weight = weight, age = age), times, data, cb);
+    return ind, I
 end
