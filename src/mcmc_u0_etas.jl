@@ -51,10 +51,12 @@ function sample_posterior(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int
     saveat = saveat isa AbstractVector ? saveat : collect(0:saveat:ind.t[end] + 10);
 
     list_predicted = []
+    ps = []
     # Plot solutions for all the sampled parameters
     plt = plot(title="n =  $n")
     for p in eachrow(Array(posterior_samples))
         sample_u01, sample_u02, sample_eta1, sample_eta2 = p
+        push!(ps, p)
 
         # Set initial values
         u0_ = [sample_u01, sample_u02]
@@ -68,5 +70,5 @@ function sample_posterior(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int
     # Plot observed values
     scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
 
-    return list_predicted, saveat, plt
+    return list_predicted, saveat, ps, plt
 end

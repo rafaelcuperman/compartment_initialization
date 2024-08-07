@@ -56,7 +56,7 @@ end
 # Plot goodness of fit
 plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
 display(plt)
-savefig(plt, datadir("sims", "naive-goodness-of-fit.png"))
+savefig(plt, plotsdir("naive-goodness-of-fit.png"))
 
 # Display average MAE and ME for all patients
 mean_mae = mean(maes);
@@ -71,7 +71,7 @@ df_results = DataFrame(mean_mae=mean_mae,
                         std_me=std_me
                         );
 println(df_results)
-CSV.write(datadir("sims", "naive-errors.csv"), df_results);
+CSV.write(plotsdir("naive-errors.csv"), df_results);
 
 
 # Add the lists element-wise using list comprehensions
@@ -79,4 +79,4 @@ errors = [observeds[i] .- preds[i] for i in eachindex(observeds)];
 mean_errors = mean(errors);
 std_errors = std(errors);
 plt = plot(ts, mean_errors, ribbon=(std_errors, std_errors), xlabel="Time", ylabel="Error", label="")
-savefig(plt, datadir("sims", "naive-errors.png"))
+savefig(plt, plotsdir("naive-errors.png"))

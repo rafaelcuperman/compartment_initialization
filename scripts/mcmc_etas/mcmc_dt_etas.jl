@@ -10,7 +10,7 @@ include(srcdir("bjorkman.jl"));
 
 # Read data
 sigma = 5;
-boolean_etas = "n";
+boolean_etas = "y";
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
 
 ind, I = individual_from_df(df);
@@ -36,6 +36,6 @@ chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=3000, chains=3
 plot(chain)
 
 # Sample from chain and recreate curves
-list_predicted, times, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100, saveat=0.1);
+list_predicted, times, ps, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100, saveat=0.1);
 display(plt_restarted)
 display(plt_centered)
