@@ -10,7 +10,7 @@ include(srcdir("bjorkman.jl"));
 
 # Read data
 sigma = 5;
-boolean_etas = "n";
+boolean_etas = "y";
 df = CSV.read(datadir("exp_raw", "bjorkman_sigma=$(sigma)_etas=$(boolean_etas).csv"), DataFrame);
 
 ind, I = individual_from_df(df);
