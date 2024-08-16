@@ -10,7 +10,7 @@ include(srcdir("bjorkman.jl"));
 include(srcdir("aux_plots.jl"));
 
 # Boolean to control if plots are saved
-save_plots = false;
+save_plots = true;
 
 # Read data
 df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
@@ -90,15 +90,15 @@ save_plots && CSV.write(plotsdir("naive-errors.csv"), df_results);
 error_u0s = (hcat(real_u0s...) .- zeros(2));
 
 plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
-save_plots && savefig(plt, plotsdir("u0s_errors_$(between_dose)h.png"))
+save_plots && savefig(plt, plotsdir("u0s_errors.png"))
 
 plt = boxplot(abs.(error_u0s)', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Abs 
 Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
-save_plots && savefig(plt, plotsdir("u0s_abserrors_$(between_dose)h.png"))
+save_plots && savefig(plt, plotsdir("u0s_abserrors.png"))
 
 combined_errors = vcat(mean(error_u0s', dims=1), std(error_u0s', dims=1))
 combined_errors_abs = vcat(mean(abs.(error_u0s'), dims=1), std(abs.(error_u0s'), dims=1))
 combined_errors = vcat(combined_errors, combined_errors_abs)
 combined_errors = DataFrame(combined_errors, ["u01", "u02"]);
 combined_errors.metric = ["mean error", "std error", "mean abserror", "std abserror"];
-save_plots && CSV.write(plotsdir("params_errors_$(between_dose)h.csv"), combined_errors);
+save_plots && CSV.write(plotsdir("params_errors.csv"), combined_errors);
