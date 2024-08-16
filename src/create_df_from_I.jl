@@ -1,6 +1,6 @@
 using DataFrames
 
-function create_df_from_I(ind, ys, ts, I, etas)
+function create_df_from_I(ind, ys, ts, I, metadata)
     df_ = DataFrame(id = ind.id,
                 time = vcat([ts; I[:,1]]...),
                 dv = vcat([vec(ys); fill(missing, size(I,1))]...),
@@ -10,7 +10,7 @@ function create_df_from_I(ind, ys, ts, I, etas)
                 duration = vcat([fill(missing, length(ys)), I[:,4]]...),
                 age = ind.x.age,
                 weight = ind.x.weight,
-                etas = Dict("eta[$i]" => etas[i] for i in eachindex(etas)),
+                metadata = metadata,
                 )
 
     sort!(df_, [:id, :time])
