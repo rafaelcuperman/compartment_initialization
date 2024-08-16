@@ -10,12 +10,17 @@ include(srcdir("mcmc_dt_etas.jl"));
 include(srcdir("bjorkman.jl"));
 include(srcdir("aux_plots.jl"));
 
+# Boolean to control if plots are saved
+save_plots = false;
+
 # Read data
-df = CSV.read(datadir("exp_pro", "bjorkman_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+df = filter(row -> row.id <= 30, df); # First 30 patients
 
 # Define priors
-dose_prior = Truncated(MixtureModel(map(u -> Normal(u, 10), 1000:250:3000)), 1000, 3000);
-time_prior = Truncated(MixtureModel(map(u -> Normal(u, 0.5), 0:6:36)), 0, 36);
+#dose_prior = Truncated(MixtureModel(map(u -> Normal(u, 10), 1000:250:3000)), 1000, 3000);
+dose_prior = Truncated(Normal(1750, 50), 1500, 2000);
+time_prior = Truncated(MixtureModel(map(u -> Normal(u, 0.5), 24:24:72)), 0, 96);
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
     "dose_prior" => dose_prior,
@@ -24,7 +29,9 @@ priors = Dict(
     );
 
 # Plot priors
-plot_priors_dt(priors);
+plt = plot_priors_dt(priors);
+display(plt)
+#save_plots && savefig(plt, plotsdir("priors.png"))
 
 # Choose pk model
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
@@ -90,7 +97,7 @@ end
 # Plot goodness of fit
 plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
 display(plt)
-savefig(plt, plotsdir("goodness-of-fit_$(between_dose)h.png"))
+save_plots && savefig(plt, plotsdir("goodness-of-fit_$(between_dose)h.png"))
 
 # Display average MAE and ME for all patients
 mean_mae = mean(maes);
@@ -105,12 +112,4 @@ df_results = DataFrame(mean_mae=mean_mae,
                         std_me=std_me
                         );
 println(df_results)
-CSV.write(plotsdir("errors_$(between_dose)h.csv"), df_results);
-
-
-# Add the lists element-wise using list comprehensions
-errors = [observeds[i] .- average_preds[i] for i in eachindex(observeds)];
-mean_errors = mean(errors);
-std_errors = std(errors);
-plt = plot(ts, mean_errors, ribbon=(std_errors, std_errors), xlabel="Time", ylabel="Error", label="")
-savefig(plt, plotsdir("errors_$(between_dose)h.png"))
+save_plots && CSV.write(plotsdir("errors_$(between_dose)h.csv"), df_results);
