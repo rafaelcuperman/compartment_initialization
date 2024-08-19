@@ -36,7 +36,11 @@ display(plt)
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC for each patient
-between_dose=48; #Time between dose for measurments used for MCMC
+between_dose = 1; #Time between dose for measurments used for MCMC
+
+# Rounding parameters for u0s and etas
+round_u0s = 1;
+round_etas = 0.1;
 
 mes = [];
 maes = [];
@@ -61,8 +65,8 @@ for (ix, i) in enumerate(unique(df.id))
 
     # Get real values of etas and u0s
     metadata = eval(Meta.parse(df_[1,:metadata]));
-    push!(real_etas, metadata["etas"]);
-    push!(real_u0s, metadata["u0s"]);
+    push!(real_etas, round.(metadata["etas"]./round_etas).*round_etas);
+    push!(real_u0s, round.(metadata["u0s"]./round_u0s).*round_u0s);
 
     # Filter observations that will be used for MCMC. The rest are used only for evaluation
     df_use = filter(row -> (row.mdv == 1) .| (row.time ∈ 1:between_dose:ind.t[end]), df_);
@@ -71,13 +75,15 @@ for (ix, i) in enumerate(unique(df.id))
     # Run MCMC
     chain = run_chain(pkmodel, ind_use, I_use, priors; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
 
-    # Get parameters and predicted modes
-    pars = chain.name_map.parameters;
-    modes = Dict(string(param) => mode(chain[param][:]) for param in pars);
+    # Get predicted modes. The values are rounded to the nearest round_u0s and round_etas to get the modes
+    mode_u01 = mode(round.(chain[:u01].data./round_u0s).*round_u0s);
+    mode_u02 = mode(round.(chain[:u02].data./round_u0s).*round_u0s);
+    mode_eta1 = mode(round.(chain[Symbol("etas[1]")].data./round_etas).*round_etas);
+    mode_eta2 = mode(round.(chain[Symbol("etas[2]")].data./round_etas).*round_etas);
 
     # Get predicted values of etas and u0s
-    push!(pred_etas, [modes["etas[1]"], modes["etas[2]"]]);
-    push!(pred_u0s, [modes["u01"], modes["u02"]]);
+    push!(pred_etas, [mode_eta1, mode_eta2]);
+    push!(pred_u0s, [mode_u01, mode_u02]);
 
     # Sample from chain and recreate n curves
     list_predicted, times, _ = sample_posterior(chain, ind, I; n=100, saveat=ind.t);
@@ -106,7 +112,7 @@ end
 
 # Plot goodness of fit
 plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
-display(plt)
+#display(plt)
 save_plots && savefig(plt, plotsdir("goodness-of-fit_$(between_dose)h.png"))
 
 
@@ -149,4 +155,5 @@ combined_errors_abs = hcat(mean(abs.(vcat(error_u0s, error_etas)), dims=2), std(
 combined_errors = hcat(combined_errors, combined_errors_abs)
 combined_errors = DataFrame(combined_errors', ["u01", "u02", "eta1", "eta2"]);
 combined_errors.metric = ["mean error", "std error", "mean abserror", "std abserror"];
+println(combined_errors)
 save_plots && CSV.write(plotsdir("params_errors_$(between_dose)h.csv"), combined_errors);

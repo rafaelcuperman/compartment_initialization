@@ -37,12 +37,9 @@ save_plots && savefig(plt, plotsdir("priors_informative.png"))
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC
-chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=5, sigma=5)
+chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=5)
 plt = plot(chain)
 save_plots && savefig(plt, plotsdir("chain_informative.png"))
-
-df[1,:metadata]
-mode(round.(chain[:t].data./24).*24)
 
 # Sample from chain and recreate curves
 list_predicted, times, ps, plt_restarted, plt_centered = sample_posterior(chain, ind, I; n=100, saveat=0.1);
@@ -50,3 +47,5 @@ display(plt_restarted)
 display(plt_centered)
 save_plots && savefig(plt_centered, plotsdir("prediction_informative.png"))
 save_plots && savefig(plt_restarted, plotsdir("prediction_restarted_informative.png"))
+
+df[1,:metadata]
