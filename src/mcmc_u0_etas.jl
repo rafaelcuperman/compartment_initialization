@@ -6,9 +6,13 @@ using DeepCompartmentModels
 using Plots
 
 function plot_priors_u0(priors)
-    u0_prior = priors["u01_prior"]
-    x = range(u0_prior.lower - 20, stop=u0_prior.upper + 20, length=1000);
-    plt_u0 = plot(x, pdf.(u0_prior, x), title="U0 prior", label="", yticks=nothing);
+    u01_prior = priors["u01_prior"]
+    x = range(u01_prior.lower - 20, stop=u01_prior.upper + 20, length=1000);
+    plt_u01 = plot(x, pdf.(u01_prior, x), title="u01 prior", label="", yticks=nothing);
+
+    u02_prior = priors["u02_prior"]
+    x = range(u02_prior.lower - 20, stop=u02_prior.upper + 20, length=1000);
+    plt_u02 = plot(x, pdf.(u02_prior, x), title="u02 prior", label="", yticks=nothing);
 
     etas_prior = priors["etas_prior"]
     x = range(-3, stop=3, length=1000);
@@ -17,7 +21,7 @@ function plot_priors_u0(priors)
     Z = [pdf(etas_prior, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
     plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
 
-    return plot(plt_u0, plt_etas, layout=(2,1), size = (800, 600))
+    return plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
 end
 
 function run_chain(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors::Dict, args...; algo=NUTS(0.65), iters::Int=2000, chains::Int=3, sigma=5, kwargs...)
@@ -71,4 +75,26 @@ function sample_posterior(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int
     scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
 
     return list_predicted, saveat, ps, plt
+end
+
+function run_chain_fixed_etas(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors::Dict, etas::AbstractVector, args...; algo=NUTS(0.65), iters::Int=2000, chains::Int=3, sigma=5, kwargs...)
+    @model function model_u0_fixed_etas(pkmodel, ind, I, priors, etas, args...; kwargs...)
+        u01 ~ priors["u01_prior"]
+        u02 ~ priors["u02_prior"]
+    
+        u0_ = [u01, u02]
+    
+        predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
+    
+        ind.y ~ MultivariateNormal(vec(predicted), sigma)
+    
+        return nothing
+    end
+
+    # Build model
+    model = model_u0_fixed_etas(pkmodel, ind, I, priors, etas);
+
+    # Sample from model
+    chain = sample(model, algo, MCMCSerial(), iters, chains; progress=true);
+    return chain
 end
