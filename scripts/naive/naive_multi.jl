@@ -9,8 +9,12 @@ using GLM
 include(srcdir("bjorkman.jl"));
 include(srcdir("aux_plots.jl"));
 
+# Boolean to control if plots are saved
+save_plots = true;
+
 # Read data
-df = CSV.read(datadir("exp_pro", "bjorkman_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+df = filter(row -> row.id <= 30, df); # First 30 patients
 
 # Choose pk model
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
@@ -20,6 +24,10 @@ maes = []
 preds = []
 observeds = []
 ts = []
+
+real_u0s = [];
+pred_u0s = [];
+
 for (ix, i) in enumerate(unique(df.id))
     #if ix == 3
     #    break
@@ -30,6 +38,10 @@ for (ix, i) in enumerate(unique(df.id))
     # Filter patient if
     df_ = filter(row -> row.id == i, df)
     ind, I = individual_from_df(df_);
+
+    # Get real values of u0s
+    metadata = eval(Meta.parse(df_[1,:metadata]));
+    push!(real_u0s, metadata["u0s"]);
 
     # Run pk model
     pred = vec(pkmodel(ind, I, ind.t; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, ind.t[end] + 10)))
@@ -56,7 +68,7 @@ end
 # Plot goodness of fit
 plt, rsquared = goodness_of_fit(vcat(average_preds...), vcat(observeds...));
 display(plt)
-savefig(plt, plotsdir("naive-goodness-of-fit.png"))
+save_plots && savefig(plt, plotsdir("naive-goodness-of-fit.png"))
 
 # Display average MAE and ME for all patients
 mean_mae = mean(maes);
@@ -71,12 +83,22 @@ df_results = DataFrame(mean_mae=mean_mae,
                         std_me=std_me
                         );
 println(df_results)
-CSV.write(plotsdir("naive-errors.csv"), df_results);
+save_plots && CSV.write(plotsdir("naive-errors.csv"), df_results);
 
 
-# Add the lists element-wise using list comprehensions
-errors = [observeds[i] .- preds[i] for i in eachindex(observeds)];
-mean_errors = mean(errors);
-std_errors = std(errors);
-plt = plot(ts, mean_errors, ribbon=(std_errors, std_errors), xlabel="Time", ylabel="Error", label="")
-savefig(plt, plotsdir("naive-errors.png"))
+# Calculate u0s and etas MAE (MAPE is not calculated because there are values=0)
+error_u0s = (hcat(real_u0s...) .- zeros(2));
+
+plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
+save_plots && savefig(plt, plotsdir("u0s_errors.png"))
+
+plt = boxplot(abs.(error_u0s)', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Abs 
+Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
+save_plots && savefig(plt, plotsdir("u0s_abserrors.png"))
+
+combined_errors = vcat(mean(error_u0s', dims=1), std(error_u0s', dims=1))
+combined_errors_abs = vcat(mean(abs.(error_u0s'), dims=1), std(abs.(error_u0s'), dims=1))
+combined_errors = vcat(combined_errors, combined_errors_abs)
+combined_errors = DataFrame(combined_errors, ["u01", "u02"]);
+combined_errors.metric = ["mean error", "std error", "mean abserror", "std abserror"];
+save_plots && CSV.write(plotsdir("params_errors.csv"), combined_errors);

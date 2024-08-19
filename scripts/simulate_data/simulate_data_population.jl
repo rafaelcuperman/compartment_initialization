@@ -12,7 +12,7 @@ include(srcdir("create_df_from_I.jl"));
 
 # Read population data
 df = CSV.read(datadir("exp_raw", "dcm/population_data.csv"), DataFrame);
-df = first(df, 30); # First n patients
+df = first(df, 50); # First n patients
 
 # Random effects
 Ω = build_omega_matrix();
@@ -20,31 +20,52 @@ df = first(df, 30); # First n patients
 # Residual
 sigma = 5;
 
-# Points where measurements are taken
-new_dose_time = 12;
-saveat = [];
-append!(saveat, collect(new_dose_time+1:1:48));
-observed_times = saveat .- new_dose_time;
+# Distribution for time of initial dose
+dist_times = Categorical([0.2, 0.5, 0.3]); #[24h, 48h, 72h] 
 
 # Simulate pk curve for all individuals
-df_pk = DataFrame()
+df_pk = DataFrame();
 for i in eachrow(df)
+    # Time of initial dose
+    new_dose_time = rand(dist_times, 1)[1] * 24;
+
+    # Points where measurements are taken
+    saveat = [];
+    append!(saveat, collect(new_dose_time+1:1:120));
+    observed_times = saveat .- new_dose_time;
+
     # Set dosing callback
-    num_doses_rec = 2; # Number of doses from where the measurements are recorded
     D = round(i.weight*25/250)*250; # Dose is weight*25 rounded to the nearest 250
     I = [0 D D*60 1/60; new_dose_time D D*60 1/60];
     cb = generate_dosing_callback(I);
+    num_doses_rec = 2; # Index from where the doses are recorded
 
+    # Build individual
     ind = Individual((weight = i.weight, age = i.age), [], [], cb, id=i.id)
     etas = sample_etas(Ω);
 
-    y = predict_pk_bjorkman(ind, I, saveat; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 48));
+    # Run PK model
+    y = predict_pk_bjorkman(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
+
+    # Save u0s before new_dose
+    u0s = y[1,:];
+
+    # Save PK measurements
+    y = y[2:end,1];
 
     # Reconstruct dosing scheme from the recording time on. The new dose is at t=0 now.
     I_ = I[num_doses_rec:end,:];
     I_[:,1] = I_[:,1] .- I_[1,1];
     
-    df_pk = vcat(df_pk, create_df_from_I(ind, y, observed_times, I_, etas))
+    # Metadata
+    metadata = Dict("etas" => etas, 
+                    "u0s" => u0s,
+                    "time" => new_dose_time,
+                    "dose" => D,
+                    "sigma" => sigma 
+                    )
+
+    df_pk = vcat(df_pk, create_df_from_I(ind, y, observed_times, I_, metadata))
 end
 
-CSV.write(datadir("exp_pro", "bjorkman_population_1h.csv"), df_pk);
+CSV.write(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), df_pk);

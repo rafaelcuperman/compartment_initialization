@@ -17,7 +17,7 @@ function plot_priors_u0(priors)
     Z = [pdf(etas_prior, [X[i, j], Y[i, j]]) for i in 1:size(X, 1), j in 1:size(X, 2)];
     plt_etas = contour(x, y, Z, xlabel="eta[1]", ylabel="eta[2]", title="Etas prior", label="", colorbar=nothing);
 
-    display(plot(plt_u0, plt_etas, layout=(2,1), size = (800, 600)))
+    return plot(plt_u0, plt_etas, layout=(2,1), size = (800, 600))
 end
 
 function run_chain(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors::Dict, args...; algo=NUTS(0.65), iters::Int=2000, chains::Int=3, sigma=5, kwargs...)
