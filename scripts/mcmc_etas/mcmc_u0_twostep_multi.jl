@@ -21,7 +21,7 @@ df = filter(row -> row.id <= 30, df); # First 30 patients
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC for each patient
-between_dose = 1; #Time between dose for measurments used for MCMC
+between_dose = 48; #Time between dose for measurments used for MCMC
 
 # Rounding parameters for u0s and etas
 round_u0s = 1;
@@ -30,8 +30,8 @@ round_etas = 0.1;
 real_etas = [];
 real_u0s = [];
 pred_etas = [];
-pred_u0s1 = [];
-pred_u0s = [];
+pred_u0s_step1 = [];
+pred_u0s_step2 = [];
 
 for (ix, i) in enumerate(unique(df.id))
     #if ix == 5
@@ -75,7 +75,7 @@ for (ix, i) in enumerate(unique(df.id))
 
     # Get predicted values of etas
     push!(pred_etas, [mode_eta1, mode_eta2]);
-    push!(pred_u0s1, [mode_u01, mode_u02]);
+    push!(pred_u0s_step1, [mode_u01, mode_u02]);
 
     ######### Second step: fix etas and do MCMC only for u0s #########
     # Define priors
@@ -94,12 +94,12 @@ for (ix, i) in enumerate(unique(df.id))
     mode2_u02 = mode(round.(chain2[:u02].data./round_u0s).*round_u0s);
 
     # Get predicted values of u0s
-    push!(pred_u0s, [mode2_u01, mode2_u02]);
+    push!(pred_u0s_step2, [mode2_u01, mode2_u02]);
 end
 
 
 # Calculate u0s and etas MAE (MAPE is not calculated because there are values=0)
-error_u0s = (hcat(real_u0s...) - hcat(pred_u0s...));
+error_u0s = (hcat(real_u0s...) - hcat(pred_u0s_step2...));
 
 plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
 save_plots && savefig(plt, plotsdir("u0s_errors_$(between_dose)h.png"))
@@ -111,7 +111,7 @@ save_plots && savefig(plt, plotsdir("u0s_abserrors_$(between_dose)h.png"))
 
 combined_errors = hcat(mean(vcat(error_u0s), dims=2), std(vcat(error_u0s), dims=2));
 combined_errors_abs = hcat(mean(abs.(vcat(error_u0s)), dims=2), std(abs.(vcat(error_u0s)), dims=2));
-combined_errors = hcat(combined_errors, combined_errors_abs)
+combined_errors = hcat(combined_errors, combined_errors_abs);
 combined_errors = DataFrame(combined_errors', ["u01", "u02"]);
 combined_errors.metric = ["mean error", "std error", "mean abserror", "std abserror"];
 println(combined_errors)
