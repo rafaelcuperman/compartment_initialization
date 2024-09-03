@@ -45,7 +45,7 @@ for i in eachrow(df)
     num_doses_rec = 2; # Index from where the doses are recorded
 
     # Build individual
-    ind = Individual((weight = i.weight, age = i.age,  ffm = ffm), [], [], cb, id=i.id)
+    ind = Individual((weight = i.weight, age = i.age, ffm = i.ffm), [], [], cb, id=i.id)
     etas = sample_etas(Ω);
 
     # Run PK model

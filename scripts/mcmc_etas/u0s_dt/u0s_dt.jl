@@ -7,13 +7,16 @@ using StatsPlots
 
 include(srcdir("mcmc_u0_etas.jl"));
 include(srcdir("bjorkman.jl"));
+#include(srcdir("mceneny.jl"));
 
 # Boolean to control if plots are saved
 save_plots = false;
 
 # Read data
 df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-df_ = df[df.id .== 1, :];  #19, 5, 1
+#df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+df.ffm = df.weight .* (1-0.3);
+df_ = df[df.id .== 5, :];  #19, 5, 1
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -24,6 +27,7 @@ ind, I = individual_from_df(df_);
 
 # Define priors
 u0_prior = Truncated(Exponential(10), 0, 60);
+#u0_prior = Truncated(Normal(100,100), 0, 400);
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
     "u01_prior" => u0_prior,
@@ -32,14 +36,39 @@ priors = Dict(
     );
 
 # Plot priors
-plt = plot_priors_u0(priors);
+#plt = plot_priors_u0(priors);
 #display(plt)
 
 # Choose pk model
+#pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC
-chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=5);
+function run_chain_mceneny(pkmodel::Function, ind::BasicIndividual, I::AbstractMatrix, priors::Dict, args...; algo=NUTS(0.65), iters::Int=2000, chains::Int=3, sigma=5, kwargs...)
+    @model function model_u0(pkmodel, ind, I, priors, args...; kwargs...)
+        u01 ~ priors["u01_prior"]
+        u02 ~ priors["u02_prior"]
+        etas ~ priors["etas_prior"] 
+    
+        u0_ = [u01, u02]
+    
+        predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
+    
+        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
+    
+        return nothing
+    end
+
+    # Build model
+    model = model_u0(pkmodel, ind, I, priors);
+
+    # Sample from model
+    chain = sample(model, algo, MCMCSerial(), iters, chains; progress=true);
+    return chain
+end
+
+#chain = run_chain_mceneny(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=0.17);
+chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=0.17);
 plt = plot(chain)
 #save_plots && savefig(plt, plotsdir("chain_multi.png"))
 
@@ -61,6 +90,10 @@ real_time = metadata["time"];
 println("Real u0s: $(real_u0s). Pred u0s: $([mode_u01, mode_u02])")
 println("Real etas: $(real_etas). Pred etas: $(pred_etas)")
 
+mean_eta1 = mean(chain[:, Symbol("etas[1]") ,:])
+std_eta1 = std(chain[:, Symbol("etas[1]") ,:])
+mean_eta2 = mean(chain[:, Symbol("etas[2]") ,:])
+std_eta2 = std(chain[:, Symbol("etas[2]") ,:])
 
 ########## Predict dose and time based on predicted etas ###########
 
@@ -75,13 +108,22 @@ println("Real etas: $(real_etas). Pred etas: $(pred_etas)")
 @model function model_dt(pkmodel, ind, I, etas, args...; kwargs...)
     #t ~ Truncated(MixtureModel(map(u -> Normal(u, 2), 24:24:72)), 0, 96);
     #t ~ Truncated(Normal(48,48), 0, 96);
-    t ~ Categorical(ones(3)/3).*24;
+    #t ~ Categorical(ones(3)/3).*24;
+    t ~ DiscreteUniform(1,6).*12
 
-    D ~ Truncated(Normal(I[2], 100), 0, 5000);
+    #D ~ Truncated(Normal(I[2], 500), 0, 5000);
+    D ~ DiscreteUniform(-1,1).*250 .+ I[2]
     #D = I[2]
 
     D_ = round(D)
     t_ = round(t)
+
+    # Sample etas
+    #etas = vec(sample(chain[[Symbol("etas[1]"), Symbol("etas[2]")]], 1).value.data)
+
+    #eta1 ~ Normal(mean_eta1, std_eta1)
+    #eta2  ~ Normal(mean_eta2, std_eta2)
+    #etas = [eta1, eta2]
 
     # Regenerate initial dose
     I_ = copy(I)
@@ -95,7 +137,7 @@ println("Real etas: $(real_etas). Pred etas: $(pred_etas)")
 
     predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
 
-    ind.y ~ MultivariateNormal(vec(predicted), 5)
+    ind.y ~ MultivariateNormal(vec(predicted), vec(predicted) * 0.17)
 
     return nothing
 end
@@ -107,7 +149,7 @@ model2 = model_dt(pkmodel, ind, I, pred_etas);
 #initial_params = FillArrays.fill([(weights = [0.2, 0.5, 0.3], t = 72, etas = [0,0])], 3)
 #chain2 = sample(model2, NUTS(0.65), MCMCSerial(), 1000, 3; progress=true);
 chain2 = sample(model2, MH(), MCMCSerial(), 10000, 3; progress=true);
-plot(chain2[5000:end])
+plot(chain2[1:end])
 
 round_time = 24;
 round_dose = 250;

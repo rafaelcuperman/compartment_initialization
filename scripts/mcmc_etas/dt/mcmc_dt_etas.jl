@@ -21,6 +21,10 @@ ind, I = individual_from_df(df);
 #dose_prior = Truncated(MixtureModel(map(u -> Normal(u, 10), 1000:250:3000)), 1000, 3000);
 dose_prior = Truncated(Normal(I[2], 50), I[2]-250, I[2]+250);
 time_prior = Truncated(MixtureModel(map(u -> Normal(u,1), 24:24:72)), 0, 96);
+
+dose_prior = DiscreteUniform(-1,1).*250 .+ 1250;
+time_prior = Categorical(ones(3)/3).*24;
+
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
     "dose_prior" => dose_prior,
@@ -38,6 +42,7 @@ pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC
 chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=5)
+chain = run_chain(pkmodel, ind, I, priors; algo=MH(), iters=20000, chains=3, sigma=5)
 plt = plot(chain)
 save_plots && savefig(plt, plotsdir("chain_informative.png"))
 
