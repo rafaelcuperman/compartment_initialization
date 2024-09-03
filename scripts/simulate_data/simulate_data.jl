@@ -6,26 +6,30 @@ using DataFrames
 using CSV
 using Printf
 
-include(srcdir("bjorkman.jl"));
+#include(srcdir("bjorkman.jl"));
+
+include(srcdir("mceneny.jl"));
 include(srcdir("create_df_from_I.jl"));
 
 # Individual data
 weight = 70
 age = 40
+ffm = weight * (1-0.3)
 
 # Set dosing callback
 D = 1750;
 new_dose_time = 24
-#I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60];
-I = [0 D D*60 1/60; 12 D D*60 1/60; new_dose_time 2000 2000*60 1/60; new_dose_time + 12 2000 2000*60 1/60];
+I = [0 D D*60 1/60; new_dose_time 2000 2000*60 1/60];
+#I = [0 D D*60 1/60; 12 D D*60 1/60; new_dose_time 2000 2000*60 1/60; new_dose_time + 12 2000 2000*60 1/60];
 
 cb = generate_dosing_callback(I);
-ind = Individual((weight = weight, age = age), [], [], cb, id="subject_1");
+ind = Individual((weight = weight, age = age, ffm=ffm), [], [], cb, id="subject_1");
 
 # Population pk
 max_time = 72
 saveat_pop = collect(0:0.1:max_time);
-y_pop = predict_pk_bjorkman(ind, I, saveat_pop; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, max_time));
+#y_pop = predict_pk_bjorkman(ind, I, saveat_pop; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, max_time));
+y_pop = predict_pk_mceneny(ind, I, saveat_pop; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, max_time));
 
 # Individual pk: includes random effects and residual error
 saveat_ind = collect(new_dose_time+1:4:48);
@@ -33,9 +37,9 @@ saveat_ind = collect(new_dose_time+1:4:48);
 Ω = build_omega_matrix();
 etas = sample_etas(Ω)
 #etas = zeros(2)
-sigma = 5
+sigma = 0.17
 
-y_ind = predict_pk_bjorkman(ind, I, saveat_ind; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, max_time));
+y_ind = predict_pk_mceneny(ind, I, saveat_ind; save_idxs=[1], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, max_time));
 
 # Plot population model and measurements
 plt = plot(saveat_pop, y_pop, label="Population model");
