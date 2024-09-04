@@ -7,8 +7,8 @@ using CSV
 using Printf
 using DeepCompartmentModels
 
-#include(srcdir("bjorkman.jl"));
-include(srcdir("mceneny.jl"));
+include(srcdir("bjorkman.jl"));
+#include(srcdir("mceneny.jl"));
 include(srcdir("create_df_from_I.jl"));
 
 # Read population data
@@ -22,7 +22,7 @@ df.ffm = df.weight .* (1-0.3);
 Ω = build_omega_matrix();
 
 # Residual
-sigma = 0.17;
+sigma = 1;
 
 # Distribution for time of initial dose
 dist_times = Categorical([0.2, 0.5, 0.3]); #[24h, 48h, 72h] 
@@ -49,9 +49,9 @@ for i in eachrow(df)
     etas = sample_etas(Ω);
 
     # Run PK model
-    #y = predict_pk_bjorkman(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
+    y = predict_pk_bjorkman(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
 
-    y = predict_pk_mceneny(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
+    #y = predict_pk_mceneny(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
 
     # Save u0s before new_dose
     u0s = y[1,:];
@@ -74,4 +74,4 @@ for i in eachrow(df)
     df_pk = vcat(df_pk, create_df_from_I(ind, y, observed_times, I_, metadata))
 end
 
-CSV.write(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), df_pk);
+#CSV.write(datadir("exp_pro", "variable_times", "bjorkman_1sigma_population_1h.csv"), df_pk);

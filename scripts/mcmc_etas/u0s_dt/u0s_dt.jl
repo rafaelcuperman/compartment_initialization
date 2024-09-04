@@ -5,15 +5,26 @@ using DataFrames
 using CSV
 using StatsPlots
 
-include(srcdir("mcmc_u0_etas.jl"));
-include(srcdir("bjorkman.jl"));
+include(srcdir("mcmc.jl"));
+#include(srcdir("bjorkman.jl"));
+include(srcdir("mceneny.jl"));
 
 # Boolean to control if plots are saved
 save_plots = false;
 
 # Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-df_ = df[df.id .== 1, :];  #19, 5, 1
+#df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+df.ffm = df.weight*(1-0.3);
+
+df_ = df[df.id .== 26, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
+
+# Choose pk model
+#pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+
+#sigma = 5
+sigma = 0.17
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -32,24 +43,24 @@ priors = Dict(
     );
 
 # Plot priors
-plt = plot_priors_u0(priors);
-#display(plt)
+plt_u01, plt_u02 = plot_priors_u0(priors);
+plt_etas = plot_priors_etas(priors);
+#plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
 
-# Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC
-chain = run_chain(pkmodel, ind, I, priors; algo=NUTS(0.65), iters=2000, chains=3, sigma=5);
-plt = plot(chain)
+mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type="proportional");
+chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
+plt = plot(chain_u0_etas)
 #save_plots && savefig(plt, plotsdir("chain_multi.png"))
 
 # Rounding parameters for u0s and etas
 round_u0s = 1;
 round_etas = 0.1;
-mode_u01 = mode(round.(chain[:u01].data./round_u0s).*round_u0s);
-mode_u02 = mode(round.(chain[:u02].data./round_u0s).*round_u0s);
-mode_eta1 = mode(round.(chain[Symbol("etas[1]")].data./round_etas).*round_etas);
-mode_eta2 = mode(round.(chain[Symbol("etas[2]")].data./round_etas).*round_etas);
+mode_u01 = mode(round.(chain_u0_etas[:u01].data./round_u0s).*round_u0s);
+mode_u02 = mode(round.(chain_u0_etas[:u02].data./round_u0s).*round_u0s);
+mode_eta1 = mode(round.(chain_u0_etas[Symbol("etas[1]")].data./round_etas).*round_etas);
+mode_eta2 = mode(round.(chain_u0_etas[Symbol("etas[2]")].data./round_etas).*round_etas);
 pred_etas = [mode_eta1, mode_eta2];
 
 # Get real values of etas and u0s
@@ -64,81 +75,44 @@ println("Real etas: $(real_etas). Pred etas: $(pred_etas)")
 
 ########## Predict dose and time based on predicted etas ###########
 
-#dist = Truncated(MixtureModel(map(u -> Normal(u, 3), 12:12:72)), 0, 96);
-#x = range(0, stop=120, length=1000);
-#plot(x, pdf.(dist, x), yticks=nothing)
+dose_prior = DiscreteUniform(-1,1)*250 + I[2];
+time_prior = Categorical(ones(3)/3).*24;
+priors = Dict(
+    "dose_prior" => dose_prior,
+    "time_prior" => time_prior,
+    );
 
-#dist = Truncated(Normal(I[2], 100), 0, 5000);
-#x = range(0, stop=5000, length=1000);
-#plot(x, pdf.(dist, x), yticks=nothing)
+# Plot priors
+plt_dose = plot_priors_dose(priors);
+plt_time = plot_priors_time(priors);
+#plot(plt_dose, plt_time, layout=(2,1), size = (800, 600))
 
-@model function model_dt(pkmodel, ind, I, etas, args...; kwargs...)
-    #t ~ Truncated(MixtureModel(map(u -> Normal(u, 2), 24:24:72)), 0, 96);
-    #t ~ Truncated(Normal(48,48), 0, 96);
-    t ~ Categorical(ones(3)/3).*24;
-
-    D ~ Truncated(Normal(I[2], 100), 0, 5000);
-    #D = I[2]
-
-    D_ = round(D)
-    t_ = round(t)
-
-    # Regenerate initial dose
-    I_ = copy(I)
-    I_ = vcat([0. 0. 0. 0.], I_)  
-
-    # Shift all the dosing times by t_ (predicted time of second dose) except the initial dose that is at t=0
-    I_[2:end, 1] = I_[2:end, 1] .+ t_
-    I_[1,2] = D_
-    I_[1,3] = D_*60
-    I_[1,4] = 1/60
-
-    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
-
-    ind.y ~ MultivariateNormal(vec(predicted), 5)
-
-    return nothing
-end
-
-# Build model
-model2 = model_dt(pkmodel, ind, I, pred_etas);
-
-# Sample from model
-#initial_params = FillArrays.fill([(weights = [0.2, 0.5, 0.3], t = 72, etas = [0,0])], 3)
-#chain2 = sample(model2, NUTS(0.65), MCMCSerial(), 1000, 3; progress=true);
-chain2 = sample(model2, MH(), MCMCSerial(), 10000, 3; progress=true);
-plot(chain2[5000:end])
+mcmcmodel = model_dt(pkmodel, ind, I, priors, pred_etas; sigma=sigma, sigma_type="additive");
+chain_dt = sample(mcmcmodel, MH(), MCMCThreads(), 20000, 3; progress=true);
+plot(chain_dt)
 
 round_time = 24;
 round_dose = 250;
-pred_time = mode(round.(chain2[:t].data./round_time).*round_time);
-pred_time = mode(chain2[:t]);
-pred_dose = mode(round.(chain2[:D].data./round_dose).*round_dose);
+pred_time = mode(round.(chain_dt[:t].data./round_time).*round_time)
+pred_time = mode(chain_dt[:t])
+pred_dose = mode(round.(chain_dt[:D].data./round_dose).*round_dose);
 
 println("Real time: $(real_time). Pred time: $(pred_time)")
 println("Real dose: $(real_dose). Pred dose: $(pred_dose)")
 
 
 
-###### Max loglikelihood ######
-dist = MultivariateNormal(ind.y, 5);
-ll = Dict()
-for time in [24, 48, 72]
-    # Regenerate initial dose
-    I_ = copy(I);
-    I_ = vcat([0. 0. 0. 0.], I_);  
-    
-    # Shift all the dosing times by t_ (predicted time of second dose) except the initial dose that is at t=0
-    I_[2:end, 1] = I_[2:end, 1] .+ time;
-    I_[1,2] = real_dose;
-    I_[1,3] = real_dose*60;
-    I_[1,4] = 1/60;
-    
-    # Get predictions
-    predicted = pkmodel(ind, I_, ind.t .+ time; save_idxs=[1], σ=0, etas=pred_etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ time));
-    
-    # Get likelihood of predictions with respect to the posterior of the observed values
-    ll[time] = log(pdf(dist, vec(predicted)))
-end
-println(ll)
-plot(chain2)
+########## Run forward u0###########
+
+u01_forward, u02_forward = forward_u0(pkmodel, chain_dt, ind, I, pred_etas; n=1000);
+
+mode_u01_forward = mode(round.(u01_forward./round_u0s).*round_u0s);
+mode_u02_forward = mode(round.(u02_forward./round_u0s).*round_u0s);
+println("Real u0s: $(real_u0s). Pred u0s: $([mode_u01_forward, mode_u02_forward])")
+
+plt_u01 = density(u01_forward, title="u0[1]", label=nothing);
+vline!(plt_u01,[real_u0s[1]], label="Real u0[1]");
+plt_u02 = density(u02_forward, title="u0[2]", label=nothing);
+vline!(plt_u02,[real_u0s[2]], label="Real u0[2]");
+p = plot(plt_u01, plt_u02, layout=(2,1));
+display(p)
