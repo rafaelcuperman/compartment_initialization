@@ -7,7 +7,7 @@ using Plots
 
 function plot_priors_u0(priors)
     u01_prior = priors["u01_prior"]
-    x = range(-10, stop=100, length=1000);
+    x = range(-10, stop=50, length=1000);
     plt_u01 = plot(x, pdf.(u01_prior, x), title="u01 prior", label="", yticks=nothing);
 
     u02_prior = priors["u02_prior"]
@@ -239,4 +239,30 @@ function sample_posterior_dt_eta(chain, ind::BasicIndividual, I::AbstractMatrix;
     scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
 
     return list_predicted, saveat, ps, plt, plt2
+end
+
+# Forward pass with predicted time, dose and etas
+function forward_u0(pkmodel, chain, ind::BasicIndividual, I::AbstractMatrix, etas; n::Int=100)
+    posterior_samples = sample(chain[[:D, :t]], n, replace=false);
+
+    u01_forward = []
+    u02_forward = []
+    for p in eachrow(Array(posterior_samples))
+        sample_D, sample_t = p
+        # Regenerate initial dose
+        I_ = copy(I);
+        I_ = vcat([0. 0. 0. 0.], I_);
+
+        # Shift all the dosing times by predicted time except the initial dose that is at t=0
+        I_[2:end, 1] = I_[2:end, 1] .+ sample_t;
+        I_[1,2] = sample_D;
+        I_[1,3] = sample_D*60;
+        I_[1,4] = 1/60;
+
+        u0_forward = pkmodel(ind, I_, [sample_t]; save_idxs=[1,2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ sample_t))
+
+        push!(u01_forward, u0_forward[1])
+        push!(u02_forward, u0_forward[2])
+    end
+    return u01_forward, u02_forward
 end

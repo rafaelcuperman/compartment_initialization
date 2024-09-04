@@ -6,22 +6,25 @@ using CSV
 using StatsPlots
 
 include(srcdir("mcmc.jl"));
-include(srcdir("bjorkman.jl"));
-#include(srcdir("mceneny.jl"));
+#include(srcdir("bjorkman.jl"));
+include(srcdir("mceneny.jl"));
 
 # Boolean to control if plots are saved
 save_plots = false;
 
 # Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-
-#df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+#df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
 df.ffm = df.weight*(1-0.3);
 
-df_ = df[df.id .== 1, :];  #19, 5, 1, #11, 12
+df_ = df[df.id .== 26, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
 
-sigma = 5
-#sigma = 0.17
+# Choose pk model
+#pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+
+#sigma = 5
+sigma = 0.17
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -44,12 +47,9 @@ plt_u01, plt_u02 = plot_priors_u0(priors);
 plt_etas = plot_priors_etas(priors);
 #plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
 
-# Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
-#pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
 # Run MCMC
-mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type="additive");
+mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type="proportional");
 chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 plt = plot(chain_u0_etas)
 #save_plots && savefig(plt, plotsdir("chain_multi.png"))
@@ -93,35 +93,22 @@ plot(chain_dt)
 
 round_time = 24;
 round_dose = 250;
-pred_time = mode(round.(chain_dt[:t].data./round_time).*round_time);
-pred_time = mode(chain_dt[:t]);
+pred_time = mode(round.(chain_dt[:t].data./round_time).*round_time)
+pred_time = mode(chain_dt[:t])
 pred_dose = mode(round.(chain_dt[:D].data./round_dose).*round_dose);
 
 println("Real time: $(real_time). Pred time: $(pred_time)")
 println("Real dose: $(real_dose). Pred dose: $(pred_dose)")
 
-# Forward pass  with predicted time, dose and etas
-posterior_samples = sample(chain_dt[[:t, :D]], 1000, replace=false);
 
-u01_forward = []
-u02_forward = []
-for p in eachrow(Array(posterior_samples))
-    sample_D, sample_t = p
-    # Regenerate initial dose
-    I_ = copy(I);
-    I_ = vcat([0. 0. 0. 0.], I_);
 
-    # Shift all the dosing times by predicted time except the initial dose that is at t=0
-    I_[2:end, 1] = I_[2:end, 1] .+ sample_t;
-    I_[1,2] = sample_D;
-    I_[1,3] = sample_D*60;
-    I_[1,4] = 1/60;
+########## Run forward u0###########
 
-    u0_forward = pkmodel(ind, I_, [sample_t]; save_idxs=[1,2], σ=sigma, etas=pred_etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ sample_t))
+u01_forward, u02_forward = forward_u0(pkmodel, chain_dt, ind, I, pred_etas; n=1000);
 
-    push!(u01_forward, u0_forward[1])
-    push!(u02_forward, u0_forward[2])
-end
+mode_u01_forward = mode(round.(u01_forward./round_u0s).*round_u0s);
+mode_u02_forward = mode(round.(u02_forward./round_u0s).*round_u0s);
+println("Real u0s: $(real_u0s). Pred u0s: $([mode_u01_forward, mode_u02_forward])")
 
 plt_u01 = density(u01_forward, title="u0[1]", label=nothing);
 vline!(plt_u01,[real_u0s[1]], label="Real u0[1]");
