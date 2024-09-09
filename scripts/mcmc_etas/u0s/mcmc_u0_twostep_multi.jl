@@ -4,24 +4,38 @@ using DrWatson
 using DataFrames
 using CSV
 using StatsPlots
-using GLM
 
-include(srcdir("mcmc_u0_etas.jl"));
-include(srcdir("bjorkman.jl"));
-include(srcdir("aux_plots.jl"));
+include(srcdir("mcmc.jl"));
 
-# Boolean to control if plots are saved
-save_plots = true;
+save_plots = false
 
-# Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-df = filter(row -> row.id <= 30, df); # First 30 patients
+pk_model_selection = "bjorkman"
 
-# Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+if pk_model_selection == "bjorkman"
+    include(srcdir("bjorkman.jl"));
+
+    df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+
+    pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+
+    sigma = 5
+
+    sigma_type = "additive";
+else
+    include(srcdir("mceneny.jl"));
+
+    df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+    df.ffm = df.weight*(1-0.3);
+
+    pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+
+    sigma = 0.17
+
+    sigma_type = "proportional";
+end
 
 # Run MCMC for each patient
-between_dose = 48; #Time between dose for measurments used for MCMC
+between_dose = 1; #Time between dose for measurments used for MCMC
 
 # Rounding parameters for u0s and etas
 round_u0s = 1;
@@ -34,7 +48,7 @@ pred_u0s_step1 = [];
 pred_u0s_step2 = [];
 
 for (ix, i) in enumerate(unique(df.id))
-    #if ix == 5
+    #if ix == 3
     #    break
     #end    
 
@@ -54,7 +68,6 @@ for (ix, i) in enumerate(unique(df.id))
     ind_use, I_use = individual_from_df(df_use);
 
     ######### First step: MCMC for etas and u0s #########
-
     # Define priors
     u0_prior = Truncated(Exponential(10), 0, 60);
     etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
@@ -65,13 +78,20 @@ for (ix, i) in enumerate(unique(df.id))
         );
 
     # Run MCMC
-    chain = run_chain(pkmodel, ind_use, I_use, priors; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
+    mcmcmodel = model_u0_etas(pkmodel, ind_use, I_use, priors; sigma=sigma, sigma_type=sigma_type);
+    chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
     # Get predicted modes. The values are rounded to the nearest round_u0s and round_etas to get the modes
-    mode_u01 = mode(round.(chain[:u01].data./round_u0s).*round_u0s);
-    mode_u02 = mode(round.(chain[:u02].data./round_u0s).*round_u0s);
-    mode_eta1 = mode(round.(chain[Symbol("etas[1]")].data./round_etas).*round_etas);
-    mode_eta2 = mode(round.(chain[Symbol("etas[2]")].data./round_etas).*round_etas);
+    mode_u01 = mode(round.(chain_u0_etas[:u01].data./round_u0s).*round_u0s);
+    mode_u02 = mode(round.(chain_u0_etas[:u02].data./round_u0s).*round_u0s);
+    mode_eta1 = mode(round.(chain_u0_etas[Symbol("etas[1]")].data./round_etas).*round_etas);
+    mode_eta2 = mode(round.(chain_u0_etas[Symbol("etas[2]")].data./round_etas).*round_etas);
+
+    #map_chain_u0_etas = maximum_a_posteriori(mcmcmodel).values;
+    #mode_u01 = map_chain_u0_etas[:u01]
+    #mode_u02 = map_chain_u0_etas[:u02]
+    #mode_eta1 = map_chain_u0_etas[Symbol("etas[1]")]
+    #mode_eta2 = map_chain_u0_etas[Symbol("etas[2]")]
 
     # Get predicted values of etas
     push!(pred_etas, [mode_eta1, mode_eta2]);
@@ -88,10 +108,11 @@ for (ix, i) in enumerate(unique(df.id))
 
     # Run MCMC
     etas = [mode_eta1, mode_eta2]
-    chain2 = run_chain_fixed_etas(pkmodel, ind, I, priors, etas; algo=NUTS(0.65), iters=2000, chains=1, sigma=5)
+    mcmcmodel = model_u0(pkmodel, ind_use, I_use, priors, etas; sigma=sigma, sigma_type=sigma_type);
+    chain_u0 = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
-    mode2_u01 = mode(round.(chain2[:u01].data./round_u0s).*round_u0s);
-    mode2_u02 = mode(round.(chain2[:u02].data./round_u0s).*round_u0s);
+    mode2_u01 = mode(round.(chain_u0[:u01].data./round_u0s).*round_u0s);
+    mode2_u02 = mode(round.(chain_u0[:u02].data./round_u0s).*round_u0s);
 
     # Get predicted values of u0s
     push!(pred_u0s_step2, [mode2_u01, mode2_u02]);
@@ -99,6 +120,7 @@ end
 
 
 # Calculate u0s and etas MAE (MAPE is not calculated because there are values=0)
+real_u0s = real_u0s[1:end-1];
 error_u0s = (hcat(real_u0s...) - hcat(pred_u0s_step2...));
 
 plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
