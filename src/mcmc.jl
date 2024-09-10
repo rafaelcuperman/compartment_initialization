@@ -85,7 +85,6 @@ end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
-
     if sigma_type == "additive"
         ind.y ~ MultivariateNormal(vec(predicted), sigma)
     elseif sigma_type == "proportional"
@@ -195,7 +194,7 @@ end
 
 
 # Sample n items from the posterior and simulate the curves
-function sample_posterior_dt_eta(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int=100, saveat=ind.t)
+function sample_posterior_dt_eta(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int=100, saveat=ind.t, plot_scatter=true)
     # Sample n u0s
     posterior_samples = sample(chain[[:D, :t, Symbol("etas[1]"), Symbol("etas[2]")]], n, replace=false);
     
@@ -232,11 +231,13 @@ function sample_posterior_dt_eta(chain, ind::BasicIndividual, I::AbstractMatrix;
     
     end
     
-    # Plot observed values centered at t0
-    scatter!(plt2, ind.t, ind.y, color="red", label="Observed values")
-    
-    # Plot observed values with restarted t0
-    scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
+    if plot_scatter
+        # Plot observed values centered at t0
+        scatter!(plt2, ind.t, ind.y, color="red", label="Observed values")
+        
+        # Plot observed values with restarted t0
+        scatter!(plt, ind.t, ind.y, color="red", label="Observed values")
+    end
 
     return list_predicted, saveat, ps, plt, plt2
 end

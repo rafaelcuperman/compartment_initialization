@@ -6,25 +6,35 @@ using CSV
 using StatsPlots
 
 include(srcdir("mcmc.jl"));
-#include(srcdir("bjorkman.jl"));
-include(srcdir("mceneny.jl"));
 
-# Boolean to control if plots are saved
-save_plots = false;
+save_plots = false
 
-# Read data
-#df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
-df.ffm = df.weight*(1-0.3);
+pk_model_selection = "bjorkman"
 
-df_ = df[df.id .== 26, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
+if pk_model_selection == "bjorkman"
+    include(srcdir("bjorkman.jl"));
 
-# Choose pk model
-#pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
-pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+    df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
 
-#sigma = 5
-sigma = 0.17
+    pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+
+    sigma = 5
+
+    sigma_type = "additive";
+else
+    include(srcdir("mceneny.jl"));
+
+    df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+    df.ffm = df.weight*(1-0.3);
+
+    pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+
+    sigma = 0.17
+
+    sigma_type = "proportional";
+end
+
+df_ = df[df.id .== 1, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -45,11 +55,11 @@ priors = Dict(
 # Plot priors
 plt_u01, plt_u02 = plot_priors_u0(priors);
 plt_etas = plot_priors_etas(priors);
-#plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
+plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
 
 
 # Run MCMC
-mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type="proportional");
+mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type=sigma_type);
 chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 plt = plot(chain_u0_etas)
 #save_plots && savefig(plt, plotsdir("chain_multi.png"))
@@ -87,9 +97,10 @@ plt_dose = plot_priors_dose(priors);
 plt_time = plot_priors_time(priors);
 #plot(plt_dose, plt_time, layout=(2,1), size = (800, 600))
 
-mcmcmodel = model_dt(pkmodel, ind, I, priors, pred_etas; sigma=sigma, sigma_type="additive");
+mcmcmodel = model_dt(pkmodel, ind, I, priors, pred_etas; sigma=sigma, sigma_type=sigma_type);
 chain_dt = sample(mcmcmodel, MH(), MCMCThreads(), 20000, 3; progress=true);
-plot(chain_dt)
+plt = plot(chain_dt)
+save_plots && savefig(plt, plotsdir("chain_dt.png"))
 
 round_time = 24;
 round_dose = 250;
@@ -110,9 +121,14 @@ mode_u01_forward = mode(round.(u01_forward./round_u0s).*round_u0s);
 mode_u02_forward = mode(round.(u02_forward./round_u0s).*round_u0s);
 println("Real u0s: $(real_u0s). Pred u0s: $([mode_u01_forward, mode_u02_forward])")
 
-plt_u01 = density(u01_forward, title="u0[1]", label=nothing);
-vline!(plt_u01,[real_u0s[1]], label="Real u0[1]");
-plt_u02 = density(u02_forward, title="u0[2]", label=nothing);
-vline!(plt_u02,[real_u0s[2]], label="Real u0[2]");
-p = plot(plt_u01, plt_u02, layout=(2,1));
-display(p)
+plt_u01 = density(u01_forward, title="u0[1]", label="Second step", color="blue");
+density!(plt_u01, vcat(chain_u0_etas[:u01].data...), label="First step", color="red");
+vline!(plt_u01,[real_u0s[1]], label="Real u0[1]", color="black", linestyle=:dash);
+
+plt_u02 = density(u02_forward, title="u0[2]", label="Second step", color="blue");
+density!(plt_u02, vcat(chain_u0_etas[:u02].data...), label="First step", color="red");
+vline!(plt_u02,[real_u0s[2]], label="Real u0[2]", color="black", linestyle=:dash);
+
+plt = plot(plt_u01, plt_u02, layout=(2,1));
+display(plt)
+save_plots && savefig(plt, plotsdir("posterior_u0_forward.png"))
