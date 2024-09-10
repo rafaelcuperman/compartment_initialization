@@ -4,13 +4,15 @@ using DrWatson
 using DataFrames
 using CSV
 
-save_plots = true
+save_plots = false
 
 # Naive
 df_naive = CSV.read(plotsdir("bjorkman_5", "naive", "params_errors.csv"), DataFrame);
 
 # U0 directly
 df_u0 = CSV.read(plotsdir("bjorkman_5", "mcmc_u0", "1h", "params_errors_1h.csv"), DataFrame);
+#df_u0 = CSV.read(plotsdir("bjorkman_5", "mcmc_u0", "1h", "etas_errors_1h_0u0s.csv"), DataFrame);
+
 
 # U0 and etas, then fix etas and predidct u0s
 df_2step = CSV.read(plotsdir("bjorkman_5", "mcmc_u0", "1h", "two_step", "params_errors_1h.csv"), DataFrame);
@@ -62,11 +64,11 @@ function plot_metric(df, metric_name; plottype="values", ylim=nothing)
 end
 
 # Plot errors for etas
-metrics_etas = df_u0s[:, ["eta1", "eta2", "metric"]];
+metrics_etas = df_u0[:, ["eta1", "eta2", "metric"]];
 
 plt_error_eta = plot_metric(metrics_etas, "mean error"; plottype="values", ylim=(-0.3,0.3))
 
-save_plots && savefig(plt_error_eta, plotsdir("error_eta.png"))
+save_plots && savefig(plt_error_eta, plotsdir("error_eta_.png"))
 
 plt_abserror_eta = plot_metric(metrics_etas, "mean abserror"; plottype="values", ylim=(0,0.2))
 

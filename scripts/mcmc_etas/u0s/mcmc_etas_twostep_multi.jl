@@ -48,9 +48,9 @@ pred_u0s_step1 = [];
 pred_u0s_step2 = [];
 
 for (ix, i) in enumerate(unique(df.id))
-    if ix == 3
-        break
-    end    
+    #if ix == 3
+    #    break
+    #end    
 
     println("$ix/$(length(unique(df.id)))")
 
@@ -69,29 +69,20 @@ for (ix, i) in enumerate(unique(df.id))
 
     ######### First step: MCMC for etas and u0s #########
     # Define priors
-    u0_prior = Truncated(Exponential(10), 0, 60);
     etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
     priors = Dict(
-        "u01_prior" => u0_prior,
-        "u02_prior" => u0_prior,
         "etas_prior" => etas_prior
         );
 
     # Run MCMC
-    mcmcmodel = model_u0_etas(pkmodel, ind_use, I_use, priors; sigma=sigma, sigma_type=sigma_type);
-    chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
+    mcmcmodel = model_etas(pkmodel, ind_use, I_use, priors, zeros(2); sigma=sigma, sigma_type=sigma_type);
+    chain_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
     # Get predicted modes. The values are rounded to the nearest round_u0s and round_etas to get the modes
-    mode_u01 = mode(round.(chain_u0_etas[:u01].data./round_u0s).*round_u0s);
-    mode_u02 = mode(round.(chain_u0_etas[:u02].data./round_u0s).*round_u0s);
-    mode_eta1 = mode(round.(chain_u0_etas[Symbol("etas[1]")].data./round_etas).*round_etas);
-    mode_eta2 = mode(round.(chain_u0_etas[Symbol("etas[2]")].data./round_etas).*round_etas);
-
-    #map_chain_u0_etas = maximum_a_posteriori(mcmcmodel).values;
-    #mode_u01 = map_chain_u0_etas[:u01]
-    #mode_u02 = map_chain_u0_etas[:u02]
-    #mode_eta1 = map_chain_u0_etas[Symbol("etas[1]")]
-    #mode_eta2 = map_chain_u0_etas[Symbol("etas[2]")]
+    mode_u01 = 0;
+    mode_u02 = 0;
+    mode_eta1 = mode(round.(chain_etas[Symbol("etas[1]")].data./round_etas).*round_etas);
+    mode_eta2 = mode(round.(chain_etas[Symbol("etas[2]")].data./round_etas).*round_etas);
 
     # Get predicted values of etas
     push!(pred_etas, [mode_eta1, mode_eta2]);
@@ -99,8 +90,8 @@ for (ix, i) in enumerate(unique(df.id))
 
     ######### Second step: fix etas and do MCMC only for u0s #########
     # Define priors
-    u01_prior = Truncated(Normal(mode_u01, 10), 0, 60);
-    u02_prior = Truncated(Normal(mode_u02, 10), 0, 60);
+    u01_prior = Truncated(Exponential(10), 0, 60);
+    u02_prior = Truncated(Exponential(10), 0, 60);
     priors = Dict(
         "u01_prior" => u01_prior,
         "u02_prior" => u02_prior,
@@ -121,6 +112,7 @@ end
 
 # Calculate u0s and etas MAE (MAPE is not calculated because there are values=0)
 error_u0s = (hcat(real_u0s...) - hcat(pred_u0s_step2...));
+error_etas = (hcat(real_etas...) - hcat(pred_etas...));
 
 plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
 save_plots && savefig(plt, plotsdir("u0s_errors_$(between_dose)h.png"))
@@ -129,6 +121,8 @@ plt = boxplot(abs.(error_u0s)', labels="", xticks=(1:2, ["u01","u02"]), ylabel="
 Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
 save_plots && savefig(plt, plotsdir("u0s_abserrors_$(between_dose)h.png"))
 
+plt = boxplot(error_etas', labels="", xticks=(1:2, ["eta1","eta2"]), ylabel="Error", fillcolor=:lightgray, markercolor=:lightgray)
+save_plots && savefig(plt, plotsdir("etas_errors_0u0s_$(between_dose)h.png"))
 
 combined_errors = hcat(mean(vcat(error_u0s), dims=2), std(vcat(error_u0s), dims=2));
 combined_errors_abs = hcat(mean(abs.(vcat(error_u0s)), dims=2), std(abs.(vcat(error_u0s)), dims=2));

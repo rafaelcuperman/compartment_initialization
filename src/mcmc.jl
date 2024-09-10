@@ -160,7 +160,40 @@ end
     return nothing
 end
 
+@model function model_etas(pkmodel, ind, I, priors, u0s, args...; sigma=5, sigma_type="additive", kwargs...)
+    etas ~ priors["etas_prior"] 
 
+    predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0s, tspan=(-0.1, ind.t[end] + 10), kwargs...)
+
+    if sigma_type == "additive"
+        ind.y ~ MultivariateNormal(vec(predicted), sigma)
+    elseif sigma_type == "proportional"
+        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
+    else
+        ind.y ~ MultivariateNormal(vec(predicted), sigma)
+    end
+
+    return nothing
+end
+
+@model function model_u01_etas(pkmodel, ind, I, priors, args...; sigma=5, sigma_type="additive", kwargs...)
+    u01 ~ priors["u01_prior"]
+    etas ~ priors["etas_prior"] 
+
+    u0_ = [u01, 0]
+
+    predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
+
+    if sigma_type == "additive"
+        ind.y ~ MultivariateNormal(vec(predicted), sigma)
+    elseif sigma_type == "proportional"
+        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
+    else
+        ind.y ~ MultivariateNormal(vec(predicted), sigma)
+    end
+
+    return nothing
+end
 
 # Sample n items from the posterior and simulate the curves
 function sample_posterior_u0_eta(chain, ind::BasicIndividual, I::AbstractMatrix; n::Int=100, saveat=ind.t)

@@ -78,20 +78,14 @@ for (ix, i) in enumerate(unique(df.id))
         );
 
     # Run MCMC
-    mcmcmodel = model_u0_etas(pkmodel, ind_use, I_use, priors; sigma=sigma, sigma_type=sigma_type);
+    mcmcmodel = model_u01_etas(pkmodel, ind_use, I_use, priors; sigma=sigma, sigma_type=sigma_type);
     chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
     # Get predicted modes. The values are rounded to the nearest round_u0s and round_etas to get the modes
     mode_u01 = mode(round.(chain_u0_etas[:u01].data./round_u0s).*round_u0s);
-    mode_u02 = mode(round.(chain_u0_etas[:u02].data./round_u0s).*round_u0s);
+    mode_u02 = 0;
     mode_eta1 = mode(round.(chain_u0_etas[Symbol("etas[1]")].data./round_etas).*round_etas);
     mode_eta2 = mode(round.(chain_u0_etas[Symbol("etas[2]")].data./round_etas).*round_etas);
-
-    #map_chain_u0_etas = maximum_a_posteriori(mcmcmodel).values;
-    #mode_u01 = map_chain_u0_etas[:u01]
-    #mode_u02 = map_chain_u0_etas[:u02]
-    #mode_eta1 = map_chain_u0_etas[Symbol("etas[1]")]
-    #mode_eta2 = map_chain_u0_etas[Symbol("etas[2]")]
 
     # Get predicted values of etas
     push!(pred_etas, [mode_eta1, mode_eta2]);
@@ -100,7 +94,7 @@ for (ix, i) in enumerate(unique(df.id))
     ######### Second step: fix etas and do MCMC only for u0s #########
     # Define priors
     u01_prior = Truncated(Normal(mode_u01, 10), 0, 60);
-    u02_prior = Truncated(Normal(mode_u02, 10), 0, 60);
+    u02_prior = Truncated(Normal(mode_u02, 10), 0, 1);
     priors = Dict(
         "u01_prior" => u01_prior,
         "u02_prior" => u02_prior,
