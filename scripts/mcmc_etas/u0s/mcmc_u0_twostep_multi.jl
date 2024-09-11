@@ -7,9 +7,9 @@ using StatsPlots
 
 include(srcdir("mcmc.jl"));
 
-save_plots = false
+save_plots = true
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -48,9 +48,9 @@ pred_u0s_step1 = [];
 pred_u0s_step2 = [];
 
 for (ix, i) in enumerate(unique(df.id))
-    if ix == 3
-        break
-    end    
+    #if ix == 3
+    #    break
+    #end    
 
     println("$ix/$(length(unique(df.id)))")
 

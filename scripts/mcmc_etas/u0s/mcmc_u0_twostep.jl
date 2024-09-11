@@ -9,7 +9,7 @@ save_plots = false
 
 include(srcdir("mcmc.jl"));
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -34,7 +34,7 @@ else
     sigma_type = "proportional";
 end
 
-df_ = df[df.id .== 1, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
+df_ = df[df.id .== 2, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
 
 
 between_dose = 1; #Time between dose for measurments used for MCMC

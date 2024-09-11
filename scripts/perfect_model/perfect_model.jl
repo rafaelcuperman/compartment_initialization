@@ -11,7 +11,7 @@ include(srcdir("mcmc.jl"));
 
 save_plots = true
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -76,8 +76,8 @@ for (ix, i) in enumerate(unique(df.id))
         push!(u01_forward, u0_forward[1])
         push!(u02_forward, u0_forward[2])
     end   
-    mode_u01_forward = median(round.(u01_forward./round_u0s).*round_u0s);
-    mode_u02_forward = median(round.(u02_forward./round_u0s).*round_u0s);
+    mode_u01_forward = mean(round.(u01_forward./round_u0s).*round_u0s);
+    mode_u02_forward = mean(round.(u02_forward./round_u0s).*round_u0s);
 
     push!(pred_u0s, [mode_u01_forward, mode_u02_forward])
 
@@ -86,15 +86,15 @@ end
 error_u0s = (hcat(real_u0s...) - hcat(pred_u0s...));
 
 plt = boxplot(error_u0s', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
-save_plots && savefig(plt, plotsdir("u0s_errors_median.png"))
+save_plots && savefig(plt, plotsdir("u0s_errors_mean.png"))
 
 plt = boxplot(abs.(error_u0s)', labels="", xticks=(1:2, ["u01","u02"]), ylabel="Abs 
 Error (UI/dL)", fillcolor=:lightgray, markercolor=:lightgray)
-save_plots && savefig(plt, plotsdir("u0s_abserrors_median.png"))
+save_plots && savefig(plt, plotsdir("u0s_abserrors_mean.png"))
 
 combined_errors = vcat(mean(error_u0s', dims=1), std(error_u0s', dims=1))
 combined_errors_abs = vcat(mean(abs.(error_u0s'), dims=1), std(abs.(error_u0s'), dims=1))
 combined_errors = vcat(combined_errors, combined_errors_abs)
 combined_errors = DataFrame(combined_errors, ["u01", "u02"]);
 combined_errors.metric = ["mean error", "std error", "mean abserror", "std abserror"];
-save_plots && CSV.write(plotsdir("params_errors_median.csv"), combined_errors);
+save_plots && CSV.write(plotsdir("params_errors_mean.csv"), combined_errors);

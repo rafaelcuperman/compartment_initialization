@@ -6,18 +6,34 @@ using CSV
 using StatsPlots
 using GLM
 
-include(srcdir("bjorkman.jl"));
 include(srcdir("aux_plots.jl"));
 
-# Boolean to control if plots are saved
-save_plots = true;
+save_plots = false
 
-# Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
-df = filter(row -> row.id <= 30, df); # First 30 patients
+pk_model_selection = "mceneny"
 
-# Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+if pk_model_selection == "bjorkman"
+    include(srcdir("bjorkman.jl"));
+
+    df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+
+    pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+
+    sigma = 5
+
+    sigma_type = "additive";
+else
+    include(srcdir("mceneny.jl"));
+
+    df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+    df.ffm = df.weight*(1-0.3);
+
+    pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+
+    sigma = 0.17
+
+    sigma_type = "proportional";
+end
 
 mes = []
 maes = []
@@ -44,7 +60,7 @@ for (ix, i) in enumerate(unique(df.id))
     push!(real_u0s, metadata["u0s"]);
 
     # Run pk model
-    pred = vec(pkmodel(ind, I, ind.t; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, ind.t[end] + 10)))
+    pred = vec(pkmodel(ind, I, ind.t; save_idxs=[1], σ=sigma, etas=zeros(2), u0=zeros(2), tspan=(-0.1, ind.t[end] + 10)))
 
     # Save time
     ts = ind.t

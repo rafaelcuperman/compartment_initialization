@@ -64,6 +64,11 @@ end
 
     u0_ = [u01, u02]
 
+    if any(abs.(etas) .> 4)
+        Turing.@addlogprob! -Inf
+        return
+    end
+
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
     if sigma_type == "additive"
@@ -100,6 +105,11 @@ end
     D ~ priors["dose_prior"]
     t ~ priors["time_prior"]
     etas ~ priors["etas_prior"] 
+
+    if any(abs.(etas) .> 4)
+        Turing.@addlogprob! -Inf
+        return
+    end
 
     # The dosing callback function requires integer values
     D_ = round(D)
@@ -147,7 +157,7 @@ end
     I_[1,3] = D_*60
     I_[1,4] = 1/60
 
-    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
+    predicted = pkmodel(ind, Iy_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
 
     if sigma_type == "additive"
         ind.y ~ MultivariateNormal(vec(predicted), sigma)
@@ -162,6 +172,11 @@ end
 
 @model function model_etas(pkmodel, ind, I, priors, u0s, args...; sigma=5, sigma_type="additive", kwargs...)
     etas ~ priors["etas_prior"] 
+
+    if any(abs.(etas) .> 4)
+        Turing.@addlogprob! -Inf
+        return
+    end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0s, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
@@ -181,6 +196,11 @@ end
     etas ~ priors["etas_prior"] 
 
     u0_ = [u01, 0]
+
+    if any(abs.(etas) .> 4)
+        Turing.@addlogprob! -Inf
+        return
+    end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 

@@ -7,22 +7,30 @@ using CSV
 using Printf
 using DeepCompartmentModels
 
-include(srcdir("bjorkman.jl"));
-#include(srcdir("mceneny.jl"));
 include(srcdir("create_df_from_I.jl"));
 
 # Read population data
 df = CSV.read(datadir("exp_raw", "dcm/population_data.csv"), DataFrame);
 df = first(df, 50); # First n patients
-
-# Build FFM from weight
 df.ffm = df.weight .* (1-0.3);
+
+pk_model_selection = "mceneny"
+
+if pk_model_selection == "bjorkman"
+    include(srcdir("bjorkman.jl"));
+    sigma = 5;
+
+    pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
+
+else
+    include(srcdir("mceneny.jl"));
+    sigma = 0.17;
+
+    pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
+end
 
 # Random effects
 Ω = build_omega_matrix();
-
-# Residual
-sigma = 1;
 
 # Distribution for time of initial dose
 dist_times = Categorical([0.2, 0.5, 0.3]); #[24h, 48h, 72h] 
@@ -45,11 +53,12 @@ for i in eachrow(df)
     num_doses_rec = 2; # Index from where the doses are recorded
 
     # Build individual
-    ind = Individual((weight = i.weight, age = i.age,  ffm = ffm), [], [], cb, id=i.id)
+    ind = Individual((weight = i.weight, age = i.age,  ffm = i.ffm), [], [], cb, id=i.id)
     etas = sample_etas(Ω);
 
     # Run PK model
-    y = predict_pk_bjorkman(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
+    y = pkmodel(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
+    #y = predict_pk_bjorkman(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
 
     #y = predict_pk_mceneny(ind, I, vcat(new_dose_time, saveat); save_idxs=[1, 2], σ=sigma, etas=etas, u0=zeros(2), tspan=(-0.1, 120));
 
@@ -74,4 +83,4 @@ for i in eachrow(df)
     df_pk = vcat(df_pk, create_df_from_I(ind, y, observed_times, I_, metadata))
 end
 
-#CSV.write(datadir("exp_pro", "variable_times", "bjorkman_1sigma_population_1h.csv"), df_pk);
+#CSV.write(datadir("exp_pro", "$(pk_model_selection)_population_1h.csv"), df_pk);
