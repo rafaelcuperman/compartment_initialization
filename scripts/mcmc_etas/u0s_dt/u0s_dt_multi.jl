@@ -7,7 +7,7 @@ using StatsPlots
 
 include(srcdir("mcmc.jl"));
 
-save_plots = false
+save_plots = true
 
 pk_model_selection = "bjorkman"
 
@@ -126,8 +126,8 @@ for (ix, i) in enumerate(unique(df.id))
     ######## Run forward with sampled dose and time and fixed etas ########
 
     u01_forward, u02_forward = forward_u0(pkmodel, chain_dt, ind_use, I_use, mode_etas; n=1000);
-    mode_u01_forward = mode(round.(u01_forward./round_u0s).*round_u0s);
-    mode_u02_forward = mode(round.(u02_forward./round_u0s).*round_u0s);
+    mode_u01_forward = median(round.(u01_forward./round_u0s).*round_u0s);
+    mode_u02_forward = median(round.(u02_forward./round_u0s).*round_u0s);
 
     # Get predicted values of  u0
     push!(pred_u0s_step2, [mode_u01_forward, mode_u02_forward]);
