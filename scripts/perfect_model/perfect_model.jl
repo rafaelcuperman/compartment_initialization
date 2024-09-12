@@ -9,7 +9,7 @@ using StatsPlots
 
 include(srcdir("mcmc.jl"));
 
-save_plots = true
+save_plots = false
 
 pk_model_selection = "mceneny"
 

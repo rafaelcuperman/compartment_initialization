@@ -157,7 +157,7 @@ end
     I_[1,3] = D_*60
     I_[1,4] = 1/60
 
-    predicted = pkmodel(ind, Iy_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
+    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
 
     if sigma_type == "additive"
         ind.y ~ MultivariateNormal(vec(predicted), sigma)
