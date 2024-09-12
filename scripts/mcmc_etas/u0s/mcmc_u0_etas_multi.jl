@@ -9,7 +9,7 @@ include(srcdir("mcmc.jl"));
 
 save_plots = true
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -36,14 +36,13 @@ end
 
 # Define priors
 u0_prior = Truncated(Exponential(10), 0, 60);
-#u0_prior = Truncated(Normal(10,20), 0, 60);
+#u0_prior = Truncated(Normal(20,20), 0, 60);
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
     "u01_prior" => u0_prior,
     "u02_prior" => u0_prior,
     "etas_prior" => etas_prior
     );
-
 # Run MCMC for each patient
 between_dose = 1; #Time between dose for measurments used for MCMC
 
@@ -62,7 +61,7 @@ real_u0s = [];
 pred_etas = [];
 pred_u0s = [];
 for (ix, i) in enumerate(unique(df.id))
-    #if ix == 3
+    #if ix == 21
     #    break
     #end    
 

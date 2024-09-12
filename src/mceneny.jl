@@ -56,13 +56,13 @@ function predict_pk_mceneny(ffm::Real, age::Real, I::AbstractMatrix, saveat; sav
 
     #https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/
     # The ODE can become stiff according to simulations, so we use a method to switch when it becomes stiff (AutoTsit5)
-    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), AutoVern7(Rodas5()), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb, maxiters=1e7, force_dtmin=true)
+    sol = solve(remake(prob, p = [CL, V1, Q, V2, 0.]), AutoTsit5(Rosenbrock23()), saveat=saveat, save_idxs=save_idxs, tstops=cb.condition.times, callback=cb, maxiters=1e7, force_dtmin=true)
     y = hcat(sol.u...)'
 
     if σ != 0
         # Add residual error
-        ϵ = rand(Normal(0, σ))
-        y = y * (1+ϵ)
+        ϵ = rand(Normal(0, σ), size(y))
+        y = y .* (1 .+ ϵ)
     end
 
     # Truncate negative values to 0

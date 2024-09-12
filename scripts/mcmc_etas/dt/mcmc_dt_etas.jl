@@ -9,7 +9,7 @@ include(srcdir("mcmc.jl"));
 
 save_plots = false
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -34,7 +34,7 @@ else
     sigma_type = "proportional";
 end
 
-df_ = df[df.id .== 1, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
+df_ = df[df.id .== 4, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
 
 
 between_dose = 1; #Time between dose for measurments used for MCMC
@@ -65,9 +65,6 @@ plt_time = plot_priors_time(priors);
 plt = plot(plt_dose, plt_time, plt_etas, layout=(3,1), size = (800, 600))
 #display(plt)
 save_plots && savefig(plt, plotsdir("priors_informative.png"))
-
-# Choose pk model
-pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 # Run MCMC
 mcmcmodel = model_dt_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type=sigma_type);

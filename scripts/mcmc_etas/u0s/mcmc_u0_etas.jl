@@ -7,7 +7,7 @@ using StatsPlots
 
 include(srcdir("mcmc.jl"));
 
-pk_model_selection = "bjorkman"
+pk_model_selection = "mceneny"
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
@@ -32,7 +32,7 @@ else
     sigma_type = "proportional";
 end
 
-df_ = df[df.id .== 1, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
+df_ = df[df.id .== 6, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
 
 
 between_dose = 1; #Time between dose for measurments used for MCMC
@@ -44,7 +44,7 @@ ind, I = individual_from_df(df_);
 
 # Define priors
 u0_prior = Truncated(Exponential(10), 0, 60);
-#u0_prior = Truncated(Normal(10,20), 0, 60);
+#u0_prior = Truncated(Normal(20,10), 0, 60);
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
     "u01_prior" => u0_prior,
@@ -53,9 +53,10 @@ priors = Dict(
     );
 
 # Plot priors
-#plt_u01, plt_u02 = plot_priors_u0(priors);
-#plt_etas = plot_priors_etas(priors);
-#plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
+plt_u01, plt_u02 = plot_priors_u0(priors);
+plt_etas = plot_priors_etas(priors);
+plot(plt_u01, plt_u02, plt_etas, layout=(3,1), size = (800, 600))
+
 
 # Run MCMC
 mcmcmodel = model_u0_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type=sigma_type);
@@ -65,11 +66,11 @@ plt = plot(chain_u0_etas)
 #savefig(plt, plotsdir("chain_multi.png"))
 
 # Sample from chain and recreate curves
-list_predicted, times, ps, plt = sample_posterior(chain, ind, I; n=100, saveat=0.1);
-display(plt)
+#list_predicted, times, ps, plt = sample_posterior(chain, ind, I; n=100, saveat=0.1);
+#display(plt)
 
 # Get parameters and modes
-pars = chain.name_map.parameters;
+#pars = chain.name_map.parameters;
 
 # Rounding parameters for u0s and etas
 round_u0s = 1;
