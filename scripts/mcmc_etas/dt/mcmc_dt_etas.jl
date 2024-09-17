@@ -18,9 +18,9 @@ if pk_model_selection == "bjorkman"
 
     pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
-    sigma = 5
+    sigma_additive = 5
+    sigma_proportional = 0
 
-    sigma_type = "additive";
 else
     include(srcdir("mceneny.jl"));
 
@@ -29,9 +29,9 @@ else
 
     pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
-    sigma = 0.17
+    sigma_additive = 0
+    sigma_proportional = 0.17
 
-    sigma_type = "proportional";
 end
 
 df_ = df[df.id .== 4, :];  #19, 5, 1, #11, 12, 5, 15, 21, 26
@@ -67,7 +67,7 @@ plt = plot(plt_dose, plt_time, plt_etas, layout=(3,1), size = (800, 600))
 save_plots && savefig(plt, plotsdir("priors_informative.png"))
 
 # Run MCMC
-mcmcmodel = model_dt_etas(pkmodel, ind, I, priors; sigma=sigma, sigma_type=sigma_type);
+mcmcmodel = model_dt_etas(pkmodel, ind, I, priors; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
 #chain_dt = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 chain_dt = sample(mcmcmodel, MH(), MCMCThreads(), 50000, 3; progress=true);
 plt = plot(chain_dt[1:end])

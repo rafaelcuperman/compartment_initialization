@@ -20,9 +20,10 @@ if pk_model_selection == "bjorkman"
 
     pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
-    sigma = 5
+    sigma_additive = 5
+    sigma_proportional = 0
+    sigma = sigma_additive
 
-    sigma_type = "additive";
 else
     include(srcdir("mceneny.jl"));
 
@@ -31,9 +32,10 @@ else
 
     pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
-    sigma = 0.17
+    sigma_additive = 0
+    sigma_proportional = 0.17
+    sigma = sigma_proportional
 
-    sigma_type = "proportional";
 end
 
 round_u0s = 1;
