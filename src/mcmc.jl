@@ -37,7 +37,7 @@ end
 
 function plot_priors_dose(priors)
     dose_prior = priors["dose_prior"]
-    x = range(0, stop=4000, length=1000);
+    x = 0:1:4000;
     plt_dose = plot(x, pdf.(dose_prior, x), title="Dose prior", label="", yticks=nothing);
 
    return plt_dose
@@ -57,7 +57,7 @@ function run_chain(mcmc_model; algo=NUTS(0.65), iters::Int=2000, chains::Int=3)
     return chain
 end
 
-@model function model_u0_etas(pkmodel, ind, I, priors, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_u0_etas(pkmodel, ind, I, priors, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     u01 ~ priors["u01_prior"]
     u02 ~ priors["u02_prior"]
     etas ~ priors["etas_prior"] 
@@ -71,18 +71,12 @@ end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end
 
-@model function model_u0(pkmodel, ind, I, priors, etas, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_u0(pkmodel, ind, I, priors, etas, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     u01 ~ priors["u01_prior"]
     u02 ~ priors["u02_prior"]
 
@@ -90,18 +84,12 @@ end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end
 
-@model function model_dt_etas(pkmodel, ind, I, priors, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_dt_etas(pkmodel, ind, I, priors, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     D ~ priors["dose_prior"]
     t ~ priors["time_prior"]
     etas ~ priors["etas_prior"] 
@@ -127,19 +115,13 @@ end
 
     predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end
 
 
-@model function model_dt(pkmodel, ind, I, priors, etas, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_dt(pkmodel, ind, I, priors, etas, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     D ~ priors["dose_prior"]
     t ~ priors["time_prior"]
 
@@ -159,18 +141,12 @@ end
 
     predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end
 
-@model function model_etas(pkmodel, ind, I, priors, u0s, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_etas(pkmodel, ind, I, priors, u0s, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     etas ~ priors["etas_prior"] 
 
     if any(abs.(etas) .> 4)
@@ -180,18 +156,42 @@ end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0s, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end
 
-@model function model_u01_etas(pkmodel, ind, I, priors, args...; sigma=5, sigma_type="additive", kwargs...)
+@model function model_dose_etas(pkmodel, ind, I, priors, t, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
+    D ~ priors["dose_prior"]
+    etas ~ priors["etas_prior"] 
+
+    if any(abs.(etas) .> 4)
+        Turing.@addlogprob! -Inf
+        return
+    end
+
+    # The dosing callback function requires integer values
+    D_ = round(D)
+    t_ = round(t)
+
+    # Regenerate initial dose
+    I_ = copy(I)
+    I_ = vcat([0. 0. 0. 0.], I_)  
+
+    # Shift all the dosing times by t_ (time of second dose) except the initial dose that is at t=0
+    I_[2:end, 1] = I_[2:end, 1] .+ t_
+    I_[1,2] = D_
+    I_[1,3] = D_*60
+    I_[1,4] = 1/60
+
+    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=etas, u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
+
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
+
+    return nothing
+end
+
+@model function model_u01_etas(pkmodel, ind, I, priors, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     u01 ~ priors["u01_prior"]
     etas ~ priors["etas_prior"] 
 
@@ -204,13 +204,7 @@ end
 
     predicted = pkmodel(ind, I, ind.t, args...; save_idxs=[1], σ=0, etas=etas, u0=u0_, tspan=(-0.1, ind.t[end] + 10), kwargs...)
 
-    if sigma_type == "additive"
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    elseif sigma_type == "proportional"
-        ind.y ~ MultivariateNormal(vec(predicted), vec(predicted)*sigma)
-    else
-        ind.y ~ MultivariateNormal(vec(predicted), sigma)
-    end
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
 
     return nothing
 end

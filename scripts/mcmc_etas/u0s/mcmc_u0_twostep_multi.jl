@@ -18,9 +18,10 @@ if pk_model_selection == "bjorkman"
 
     pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
-    sigma = 5
+    sigma_additive = 5
+    sigma_proportional = 0
+    sigma = sigma_additive
 
-    sigma_type = "additive";
 else
     include(srcdir("mceneny.jl"));
 
@@ -29,9 +30,10 @@ else
 
     pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
-    sigma = 0.17
+    sigma_additive = 0
+    sigma_proportional = 0.17
+    sigma = sigma_proportional
 
-    sigma_type = "proportional";
 end
 
 # Run MCMC for each patient
@@ -108,7 +110,7 @@ for (ix, i) in enumerate(unique(df.id))
 
     # Run MCMC
     etas = [mode_eta1, mode_eta2]
-    mcmcmodel = model_u0(pkmodel, ind_use, I_use, priors, etas; sigma=sigma, sigma_type=sigma_type);
+    mcmcmodel = model_u0(pkmodel, ind_use, I_use, priors, etas; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
     chain_u0 = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
     mode2_u01 = mode(round.(chain_u0[:u01].data./round_u0s).*round_u0s);

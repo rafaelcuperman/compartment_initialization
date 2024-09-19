@@ -18,9 +18,10 @@ if pk_model_selection == "bjorkman"
 
     pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
-    sigma = 5
+    sigma_additive = 5
+    sigma_proportional = 0
+    sigma = sigma_additive
 
-    sigma_type = "additive";
 else
     include(srcdir("mceneny.jl"));
 
@@ -29,9 +30,10 @@ else
 
     pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
-    sigma = 0.17
+    sigma_additive = 0
+    sigma_proportional = 0.17
+    sigma = sigma_proportional
 
-    sigma_type = "proportional";
 end
 
 # Define priors
@@ -81,7 +83,7 @@ for (ix, i) in enumerate(unique(df.id))
     ind_use, I_use = individual_from_df(df_use);
 
     # Run MCMC
-    mcmcmodel = model_u0_etas(pkmodel, ind_use, I_use, priors; sigma=sigma, sigma_type=sigma_type);
+    mcmcmodel = model_u0_etas(pkmodel, ind_use, I_use, priors; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
     chain_u0_etas = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
 
     # Get predicted modes. The values are rounded to the nearest round_u0s and round_etas to get the modes
