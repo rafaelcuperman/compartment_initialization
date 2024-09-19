@@ -2,11 +2,14 @@ name = "compartment-initialization"
 authors = ["rafaelcuperman"]
 
 [deps]
+ArviZ = "131c737c-5715-5e2e-ad31-c244f01c1dc7"
+ArviZExampleData = "2f96bb34-afd9-46ae-bcd0-9b2d4372fe3c"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DeepCompartmentModels = "398c52f8-e6e0-45bd-bf73-2340696b0a8e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+DynamicPPL = "366bfd00-2699-11ea-058f-f148b4cae6d8"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"

@@ -4,6 +4,9 @@ using DrWatson
 using DataFrames
 using CSV
 using StatsPlots
+using ArviZ
+using Random
+using DynamicPPL
 
 include(srcdir("mcmc.jl"));
 
@@ -35,7 +38,7 @@ else
 
 end
 
-df_ = df[df.id .== 3, :]; 
+df_ = df[df.id .== 19, :]; 
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -107,11 +110,8 @@ for i in 1:length(chains)
     push!(pred_doses, pred_dose)
     push!(pred_etas, pred_eta)
 end
-
-println(metadata)
-println(pred_dose)
 prob_models = exp.(logprobs)./sum(exp.(logprobs));
-bar(times, prob_models, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Mean of posterior")
+plt1 = bar(times, prob_models, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Mean of posterior")
 
 
 #####################################################################
@@ -145,7 +145,7 @@ for i in 1:length(chains)
     push!(mls, ml)
 end
 norm_mls = mls/sum(mls);
-bar(times, norm_mls, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Simple MCMC")
+plt2 = bar(times, norm_mls, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Simple MCMC")
 
 
 #####################################################################
@@ -197,4 +197,42 @@ for i in 1:length(chains)
     push!(mls_is, ml)
 end
 norm_mls_is = mls_is/sum(mls_is);
-bar(times, norm_mls_is, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Importance sampling")
+plt3 = bar(times, norm_mls_is, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Importance sampling")
+
+#####################################################################
+#                   Option 4: ELPD LOO
+# https://burtonjosh.github.io/blog/golf-putting-in-turing/
+# https://arviz-devs.github.io/ArviZ.jl/stable/api/stats/#PosteriorStats.ModelComparisonResult
+#####################################################################
+loos = []
+waics = []
+idatas = Dict()
+for i in 1:length(chains)
+    log_likelihood = pointwise_loglikelihoods(models[i], MCMCChains.get_sections(chains[i], :parameters))
+    log_likelihood = log_likelihood["y"];
+    log_likelihood = reshape(log_likelihood, size(log_likelihood)..., 1);
+    push!(loos, loo(log_likelihood).estimates.elpd)
+    push!(waics, waic(log_likelihood).estimates.elpd)
+    idata = from_mcmcchains(
+                chains[i];
+                log_likelihood=Dict("ll" => log_likelihood),
+                observed_data=(; y),
+                library=Turing,
+                )
+    idatas[Symbol((times[i]))] = idata
+end
+idatas = NamedTuple(idatas);
+comparison = compare(idatas, elpd_method=loo)
+
+norm_loos = exp.(loos)/sum(exp.(loos));
+plt4 = bar(times, norm_loos, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="LOO")
+
+norm_waics = exp.(waics)/sum(exp.(waics));
+plt5 = bar(times, norm_waics, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="WAIC")
+
+#####################################################################
+#                   Plot all the results
+#####################################################################
+
+println("Real time: $(metadata["time"])")
+plot(plt1, plt2, plt3, plt4, plt5, layout=(2,3))
