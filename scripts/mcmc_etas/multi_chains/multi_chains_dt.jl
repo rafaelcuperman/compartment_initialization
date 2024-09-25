@@ -6,7 +6,6 @@ using CSV
 using StatsPlots
 using ArviZ
 using Random
-using DynamicPPL
 
 include(srcdir("mcmc.jl"));
 
@@ -38,7 +37,7 @@ else
 
 end
 
-df_ = df[df.id .== 19, :]; 
+df_ = df[df.id .== 5, :]; 
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -91,6 +90,59 @@ println("Done")
 plt = plot(chains[1][burnin:end])
 plt = plot(chains[2][burnin:end])
 plt = plot(chains[3][burnin:end])
+
+
+# Plot distribution of all the chains
+plt_dose = density(vcat(chains[1][:D].data...), label="t=24", color = "blue", title="Dose", yticks=nothing)
+density!(plt_dose, vcat(chains[2][:D].data...), label="t=48", color = "black")
+density!(plt_dose, vcat(chains[3][:D].data...), label="t=72",  color = "green")
+
+plt_eta1 = density(vcat(chains[1][Symbol("etas[1]")].data...), label=nothing, color = "blue", title="eta1", yticks=nothing)
+density!(plt_eta1, vcat(chains[2][Symbol("etas[1]")].data...), label=nothing, color = "black")
+density!(plt_eta1, vcat(chains[3][Symbol("etas[1]")].data...), label=nothing, color = "green")
+
+plt_eta2 = density(vcat(chains[1][Symbol("etas[2]")].data...), label=nothing, color = "blue",  title="eta2", yticks=nothing)
+density!(plt_eta2, vcat(chains[2][Symbol("etas[2]")].data...), label=nothing, color = "black")
+density!(plt_eta2, vcat(chains[3][Symbol("etas[2]")].data...), label=nothing, color = "green")
+
+plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
+
+
+# Plot the distribution of each chain
+plt_dose = density(chains[1][:D].data, label="t=24", color = "blue", title="Dose", yticks=nothing)
+density!(plt_dose, chains[2][:D].data, label="t=48", color = "black")
+density!(plt_dose, chains[3][:D].data, label="t=72",  color = "green")
+
+plt_eta1 = density(chains[1][Symbol("etas[1]")].data, label=nothing, color = "blue", title="eta1", yticks=nothing)
+density!(plt_eta1, chains[2][Symbol("etas[1]")].data, label=nothing, color = "black")
+density!(plt_eta1, chains[3][Symbol("etas[1]")].data, label=nothing, color = "green")
+
+plt_eta2 = density(chains[1][Symbol("etas[2]")].data, label=nothing, color = "blue",  title="eta2", yticks=nothing)
+density!(plt_eta2, chains[2][Symbol("etas[2]")].data, label=nothing, color = "black")
+density!(plt_eta2, chains[3][Symbol("etas[2]")].data, label=nothing, color = "green")
+
+# Remove duplicated labels in plot
+labels = [x[:label] for x in plt_dose.series_list]
+
+function duplicated_indices(v)
+    counts = Dict{eltype(v), Int}()
+    duplicates = []
+    for i in 1:length(v)
+        counts[v[i]] = get(counts, v[i], 0) + 1
+        if counts[v[i]] > 1
+            push!(duplicates, i)
+        end
+    end
+    return duplicates
+end
+indices = duplicated_indices(labels)
+
+for i in indices
+    plt_dose.series_list[i][:label] = ""
+end
+
+plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
+
 
 #####################################################################
 #         Option 1: p(x|θ)p(θ) with θ = mean of posterior           #
@@ -164,7 +216,8 @@ plt2 = bar(times, norm_mls, xticks = times, legend = false, xlabel = "Time of in
 # When the q(θ) is the same as the posterior distribution (p(θ|x)), 
 # the variance of the estimator is minimized and is equal to zero.
 #
-# Then, lets use q(θ) = p(θ|x)
+# Then, lets use q(θ) = p(θ|x) approximating p(θ|x) as Normal distributions
+# with mean and stdev their respective values from the chains
 #####################################################################
 
 mls_is = [];
@@ -177,20 +230,26 @@ for i in 1:length(chains)
     posterior_eta1 = Normal(mean(samples_posterior.eta1), std(samples_posterior.eta1));
     posterior_eta2 = Normal(mean(samples_posterior.eta2), std(samples_posterior.eta2));
 
-    x = 0:1:4000;
-    plt_dose = plot(x, pdf.(posterior_dose, x), title="Dose posterior", label="", yticks=nothing);
-    x = -1:0.01:1;
-    plt_eta1 = plot(x, pdf.(posterior_eta1, x), title="Eta1 posterior", label="", yticks=nothing);
-    plt_eta2 = plot(x, pdf.(posterior_eta2, x), title="Eta2 posterior", label="", yticks=nothing);
-    plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1))
+    #x = 0:1:4000;
+    #plt_dose = plot(x, pdf.(posterior_dose, x), title="Dose posterior", label="", yticks=nothing);
+    #x = -1:0.01:1;
+    #plt_eta1 = plot(x, pdf.(posterior_eta1, x), title="Eta1 posterior", label="", yticks=nothing);
+    #plt_eta2 = plot(x, pdf.(posterior_eta2, x), title="Eta2 posterior", label="", yticks=nothing);
+    #plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1))
 
-    samples_posterior = last(samples_posterior, 10000);
+    #samples_posterior = last(samples_posterior, 10000);
+    n=10000
+    samples_posterior = DataFrame(hcat(rand(posterior_dose, n), rand(posterior_eta1, n), rand(posterior_eta2, n)), ["D", "eta1", "eta2"])
     ratio = 0;
-    #ml = [];
     for (ix, row) in enumerate(eachrow(samples_posterior))
-        ljoint = logjoint(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]]))
-        proposal = logpdf(posterior_dose, row["D"]) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
-        ratio += exp(ljoint - proposal)
+        #ljoint = logjoint(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]]))
+        #proposal = logpdf(posterior_dose, row["D"]) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
+        #ratio += exp(ljoint)
+        D = round(row["D"]/250)*250;
+        llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+        lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+        logproposal = logpdf(posterior_dose, D) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
+        ratio += exp(llikelihood + lprior - logproposal)
     end
     #println(ml[end])
     ml = ratio/ size(samples_posterior, 1)
@@ -200,29 +259,29 @@ norm_mls_is = mls_is/sum(mls_is);
 plt3 = bar(times, norm_mls_is, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Importance sampling")
 
 #####################################################################
-#                   Option 4: ELPD LOO
+#                   Option 4: ELPD LOO & WAIC
 # https://burtonjosh.github.io/blog/golf-putting-in-turing/
 # https://arviz-devs.github.io/ArviZ.jl/stable/api/stats/#PosteriorStats.ModelComparisonResult
 #####################################################################
-loos = []
-waics = []
-idatas = Dict()
+loos = [];
+waics = [];
+idatas = Dict();
 for i in 1:length(chains)
     log_likelihood = pointwise_loglikelihoods(models[i], MCMCChains.get_sections(chains[i], :parameters))
-    log_likelihood = log_likelihood["y"];
+    log_likelihood = log_likelihood["ind.y"];
     log_likelihood = reshape(log_likelihood, size(log_likelihood)..., 1);
     push!(loos, loo(log_likelihood).estimates.elpd)
     push!(waics, waic(log_likelihood).estimates.elpd)
     idata = from_mcmcchains(
                 chains[i];
                 log_likelihood=Dict("ll" => log_likelihood),
-                observed_data=(; y),
+                observed_data=(; ind.y),
                 library=Turing,
                 )
     idatas[Symbol((times[i]))] = idata
 end
 idatas = NamedTuple(idatas);
-comparison = compare(idatas, elpd_method=loo)
+#comparison = compare(idatas, elpd_method=loo)
 
 norm_loos = exp.(loos)/sum(exp.(loos));
 plt4 = bar(times, norm_loos, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="LOO")
@@ -235,4 +294,6 @@ plt5 = bar(times, norm_waics, xticks = times, legend = false, xlabel = "Time of 
 #####################################################################
 
 println("Real time: $(metadata["time"])")
-plot(plt1, plt2, plt3, plt4, plt5, layout=(2,3))
+plot(plt1, plt2, plt3, plt4, plt5, layout=(2,3), size=(800,500))
+#plot(plt1, plt2, plt4, plt5, layout=(2,2), size=(800,500))
+#plot(plt1, plt2, plt5, layout=(2,2), size=(800,500))
