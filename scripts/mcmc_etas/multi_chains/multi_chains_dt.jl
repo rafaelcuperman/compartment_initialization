@@ -37,7 +37,7 @@ else
 
 end
 
-df_ = df[df.id .== 5, :]; 
+df_ = df[df.id .== 5, :]; #19
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
@@ -290,10 +290,41 @@ norm_waics = exp.(waics)/sum(exp.(waics));
 plt5 = bar(times, norm_waics, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="WAIC")
 
 #####################################################################
+#         Option 6: Marginal Likelihood sampled from posterior
+# The marginal likelihood is defined as P(x) = ∫p(x|θ)p(θ)dθ
+# We will take samples of θ from the posterior (the generated chains)
+# and use those θ to approximate the integral by discretizing the sum
+#####################################################################
+mls_post = [];
+for i in 1:length(chains)
+    samples_posterior = hcat(vcat(chains[i][burnin:end][:D].data...), vcat(chains[i][burnin:end][Symbol("etas[1]")].data...), vcat(chains[i][burnin:end][Symbol("etas[2]")].data...));
+    samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
+
+    n=10000;
+    samples_posterior = samples_posterior[shuffle(1:nrow(samples_posterior))[1:n], :];
+
+    ll = 0;
+    for (ix, row) in enumerate(eachrow(samples_posterior))
+        #ljoint = logjoint(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]]))
+        #proposal = logpdf(posterior_dose, row["D"]) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
+        #ratio += exp(ljoint)
+        D = round(row["D"]/250)*250;
+        llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+        lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+        ll += exp(llikelihood + lprior)
+    end
+    #println(ml[end])
+    ml = ll/ size(samples_posterior, 1)
+    push!(mls_post, ml)
+end
+norm_mls_post = mls_post/sum(mls_post);
+plt6 = bar(times, norm_mls_post, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Sampled from posterior")
+
+#####################################################################
 #                   Plot all the results
 #####################################################################
 
 println("Real time: $(metadata["time"])")
-plot(plt1, plt2, plt3, plt4, plt5, layout=(2,3), size=(800,500))
+plot(plt1, plt2, plt3, plt6, plt4, plt5, layout=(2,3), size=(800,500))
 #plot(plt1, plt2, plt4, plt5, layout=(2,2), size=(800,500))
 #plot(plt1, plt2, plt5, layout=(2,2), size=(800,500))
