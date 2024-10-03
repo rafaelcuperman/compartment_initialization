@@ -12,30 +12,39 @@ include(srcdir("mcmc.jl"));
 save_plots = false
 
 type_prior = "discrete";
-pk_model_selection = "bjorkman";
+pk_model_data = "bjorkman"; # Model that was used to generate the data
+pk_model_selection = "mceneny"; # Model that will be used to model the data and make predictions
+
+df = CSV.read(datadir("exp_pro", "variable_times", "$(pk_model_data)_population_1h.csv"), DataFrame);
+df.ffm = df.weight*(1-0.3);
 
 if pk_model_selection == "bjorkman"
     include(srcdir("bjorkman.jl"));
-
-    df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
 
     pkmodel(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
     sigma_additive = 5
     sigma_proportional = 0
 
-else
+elseif pk_model_selection == "mceneny"
     include(srcdir("mceneny.jl"));
-
-    df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
-    df.ffm = df.weight*(1-0.3);
 
     pkmodel(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
     sigma_additive = 0
     sigma_proportional = 0.17
 
-end
+elseif pk_model_selection == "simple"
+    include(srcdir("simple_pk.jl"));
+
+    pkmodel(args...; kwargs...) = predict_pk_simple(args...; kwargs...);
+
+    sigma_additive = 5
+    sigma_proportional = 0
+
+else
+    throw(ExceptionError("Unknown pk_model_selection"))
+end;
 
 df_ = df[df.id .== 5, :]; #19
 
@@ -55,9 +64,11 @@ if type_prior == "discrete"
     probs = probs/sum(probs);
     dose_prior = Categorical(probs).*250;
     burnin = 20000
-else    
+elseif type_prior == "continuous"  
     dose_prior = Truncated(Normal(I[2], 500), 0, 4000);
     burnin = 1
+else
+    throw(ExceptionError("Unknown type_prior"))
 end;
 
 etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
@@ -93,36 +104,36 @@ plt = plot(chains[3][burnin:end])
 
 
 # Plot distribution of all the chains
-plt_dose = density(vcat(chains[1][:D].data...), label="t=24", color = "blue", title="Dose", yticks=nothing)
-density!(plt_dose, vcat(chains[2][:D].data...), label="t=48", color = "black")
-density!(plt_dose, vcat(chains[3][:D].data...), label="t=72",  color = "green")
+plt_dose = density(vcat(chains[1][:D].data...), label="t=24", color = "blue", title="Dose", yticks=nothing);
+density!(plt_dose, vcat(chains[2][:D].data...), label="t=48", color = "black");
+density!(plt_dose, vcat(chains[3][:D].data...), label="t=72",  color = "green");
 
-plt_eta1 = density(vcat(chains[1][Symbol("etas[1]")].data...), label=nothing, color = "blue", title="eta1", yticks=nothing)
-density!(plt_eta1, vcat(chains[2][Symbol("etas[1]")].data...), label=nothing, color = "black")
-density!(plt_eta1, vcat(chains[3][Symbol("etas[1]")].data...), label=nothing, color = "green")
+plt_eta1 = density(vcat(chains[1][Symbol("etas[1]")].data...), label=nothing, color = "blue", title="eta1", yticks=nothing);
+density!(plt_eta1, vcat(chains[2][Symbol("etas[1]")].data...), label=nothing, color = "black");
+density!(plt_eta1, vcat(chains[3][Symbol("etas[1]")].data...), label=nothing, color = "green");
 
-plt_eta2 = density(vcat(chains[1][Symbol("etas[2]")].data...), label=nothing, color = "blue",  title="eta2", yticks=nothing)
-density!(plt_eta2, vcat(chains[2][Symbol("etas[2]")].data...), label=nothing, color = "black")
-density!(plt_eta2, vcat(chains[3][Symbol("etas[2]")].data...), label=nothing, color = "green")
+plt_eta2 = density(vcat(chains[1][Symbol("etas[2]")].data...), label=nothing, color = "blue",  title="eta2", yticks=nothing);
+density!(plt_eta2, vcat(chains[2][Symbol("etas[2]")].data...), label=nothing, color = "black");
+density!(plt_eta2, vcat(chains[3][Symbol("etas[2]")].data...), label=nothing, color = "green");
 
 plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
 
 
 # Plot the distribution of each chain
-plt_dose = density(chains[1][:D].data, label="t=24", color = "blue", title="Dose", yticks=nothing)
-density!(plt_dose, chains[2][:D].data, label="t=48", color = "black")
-density!(plt_dose, chains[3][:D].data, label="t=72",  color = "green")
+plt_dose = density(chains[1][:D].data, label="t=24", color = "blue", title="Dose", yticks=nothing);
+density!(plt_dose, chains[2][:D].data, label="t=48", color = "black");
+density!(plt_dose, chains[3][:D].data, label="t=72",  color = "green");
 
-plt_eta1 = density(chains[1][Symbol("etas[1]")].data, label=nothing, color = "blue", title="eta1", yticks=nothing)
-density!(plt_eta1, chains[2][Symbol("etas[1]")].data, label=nothing, color = "black")
-density!(plt_eta1, chains[3][Symbol("etas[1]")].data, label=nothing, color = "green")
+plt_eta1 = density(chains[1][Symbol("etas[1]")].data, label=nothing, color = "blue", title="eta1", yticks=nothing);
+density!(plt_eta1, chains[2][Symbol("etas[1]")].data, label=nothing, color = "black");
+density!(plt_eta1, chains[3][Symbol("etas[1]")].data, label=nothing, color = "green");
 
-plt_eta2 = density(chains[1][Symbol("etas[2]")].data, label=nothing, color = "blue",  title="eta2", yticks=nothing)
-density!(plt_eta2, chains[2][Symbol("etas[2]")].data, label=nothing, color = "black")
-density!(plt_eta2, chains[3][Symbol("etas[2]")].data, label=nothing, color = "green")
+plt_eta2 = density(chains[1][Symbol("etas[2]")].data, label=nothing, color = "blue",  title="eta2", yticks=nothing);
+density!(plt_eta2, chains[2][Symbol("etas[2]")].data, label=nothing, color = "black");
+density!(plt_eta2, chains[3][Symbol("etas[2]")].data, label=nothing, color = "green");
 
 # Remove duplicated labels in plot
-labels = [x[:label] for x in plt_dose.series_list]
+labels = [x[:label] for x in plt_dose.series_list];
 
 function duplicated_indices(v)
     counts = Dict{eltype(v), Int}()
@@ -134,12 +145,12 @@ function duplicated_indices(v)
         end
     end
     return duplicates
-end
-indices = duplicated_indices(labels)
+end;
+indices = duplicated_indices(labels);
 
 for i in indices
     plt_dose.series_list[i][:label] = ""
-end
+end;
 
 plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
 
@@ -197,7 +208,7 @@ for i in 1:length(chains)
     push!(mls, ml)
 end
 norm_mls = mls/sum(mls);
-plt2 = bar(times, norm_mls, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="Simple MCMC")
+plt2 = bar(times, norm_mls, xticks = times, legend = false, xlabel = "Time of initial dose (h)", title="ML approximation")
 
 
 #####################################################################
@@ -300,7 +311,7 @@ for i in 1:length(chains)
     samples_posterior = hcat(vcat(chains[i][burnin:end][:D].data...), vcat(chains[i][burnin:end][Symbol("etas[1]")].data...), vcat(chains[i][burnin:end][Symbol("etas[2]")].data...));
     samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
 
-    n=10000;
+    n=min(10000, size(samples_posterior,1));
     samples_posterior = samples_posterior[shuffle(1:nrow(samples_posterior))[1:n], :];
 
     ll = 0;
@@ -325,6 +336,6 @@ plt6 = bar(times, norm_mls_post, xticks = times, legend = false, xlabel = "Time 
 #####################################################################
 
 println("Real time: $(metadata["time"])")
-plot(plt1, plt2, plt3, plt6, plt4, plt5, layout=(2,3), size=(800,500))
+plot(plt1, plt6, plt2, plt3, plt4, plt5, layout=(2,3), size=(800,500))
 #plot(plt1, plt2, plt4, plt5, layout=(2,2), size=(800,500))
 #plot(plt1, plt2, plt5, layout=(2,2), size=(800,500))
