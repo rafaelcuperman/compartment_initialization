@@ -2,7 +2,7 @@ using DrWatson
 @quickactivate "compartment-initialization"
 
 using Turing
-using DeepCompartmentModels
+using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
 using Plots
 
 function plot_priors_u0(priors)

@@ -3,6 +3,9 @@ using DrWatson
 
 using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
 
+sigma_additive = 5;
+sigma_proportional = 0;
+
 """ Hemophilia PK model based on https://pubmed.ncbi.nlm.nih.gov/22042695/ without the covariate effects """
 function simple_pk()
     CL = 193 #mL/h
@@ -72,6 +75,8 @@ end;
 function predict_pk_simple(i::BasicIndividual, I::AbstractMatrix, args...; kwargs...)
     predict_pk_simple(I, args...; kwargs...)
 end
+
+predict_pk(args...; kwargs...) = predict_pk_simple(args...; kwargs...);
 
 """ Creates an individual from a df"""
 function individual_from_df(df)

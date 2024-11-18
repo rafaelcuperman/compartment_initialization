@@ -1,7 +1,10 @@
 using DrWatson
 @quickactivate "compartment-initialization"
 
-using DeepCompartmentModels
+using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
+
+sigma_additive = 5;
+sigma_proportional = 0;
 
 """ Hemophilia PK model based on https://pubmed.ncbi.nlm.nih.gov/22042695/"""
 function bjorkman(weight::Real, age::Real)
@@ -84,6 +87,8 @@ function predict_pk_bjorkman(i::BasicIndividual, I::AbstractMatrix, args...; kwa
 
     predict_pk_bjorkman(weight, age, I, args...; kwargs...)
 end
+
+predict_pk(args...; kwargs...) = predict_pk_bjorkman(args...; kwargs...);
 
 """ Creates an individual from a df"""
 function individual_from_df(df)
