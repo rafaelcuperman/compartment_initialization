@@ -1,7 +1,10 @@
 using DrWatson
 @quickactivate "compartment-initialization"
 
-using DeepCompartmentModels
+using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
+
+sigma_additive = 0;
+sigma_proportional = 0.17;
 
 # Fat free mass = weight * (1-bodyfat)
 # Assume 30% bodyfat
@@ -81,6 +84,8 @@ function predict_pk_mceneny(i::BasicIndividual, I::AbstractMatrix, args...; kwar
 
     predict_pk_mceneny(ffm, age, I, args...; kwargs...)
 end
+
+predict_pk(args...; kwargs...) = predict_pk_mceneny(args...; kwargs...);
 
 
 """ Creates an individual from a df"""
