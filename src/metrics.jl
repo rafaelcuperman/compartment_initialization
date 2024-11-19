@@ -84,7 +84,7 @@ end
 function importance_sampling(chains, models)
     mls_is = [];
     for i in 1:length(chains)
-        samples_posterior = hcat(vcat(chains[i][burnin:end][:D].data...), vcat(chains[i][burnin:end][Symbol("etas[1]")].data...), vcat(chains[i][burnin:end][Symbol("etas[2]")].data...));
+        samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
         samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
     
         # Build normal distributions based on sample mean and stdev
@@ -169,7 +169,7 @@ end
 function ml_post(chains, models)
     mls_post = [];
     for i in 1:length(chains)
-        samples_posterior = hcat(vcat(chains[i][burnin:end][:D].data...), vcat(chains[i][burnin:end][Symbol("etas[1]")].data...), vcat(chains[i][burnin:end][Symbol("etas[2]")].data...));
+        samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
         samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
 
         n=min(10000, size(samples_posterior,1));
