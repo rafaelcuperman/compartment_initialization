@@ -9,7 +9,7 @@ times = [24, 48, 72];
 metric = "ml_is"; # joint, ml_post, ml_prior, ml_is, loo, waic
 
 # Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
 #df.ffm = df.weight*(1-0.3);
 data = df[df.id .== 5, :]; #5, 19
 
@@ -50,4 +50,4 @@ for i in preds
     plot!(plt, collect(saveat) .- i[1], y, color=color, alpha=0.1, label=nothing)
 end
 display(plt)
-#scatter!(plt, ind.t, ind.y, color=:blue, markersize=2, label=nothing)
+scatter!(plt, ind.t, ind.y, color=:red, markersize=2, label=nothing)
