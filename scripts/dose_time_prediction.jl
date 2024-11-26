@@ -4,6 +4,7 @@ using DrWatson
 include(srcdir("dose_time_prediction.jl"));
 
 include(srcdir("bjorkman.jl")); # Model that will be used to make predictions
+use_etas = true;
 type_prior = "discrete";
 times = [24, 48, 72];
 metric = "ml_is"; # joint, ml_post, ml_prior, ml_is, loo, waic
@@ -14,10 +15,10 @@ df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"),
 data = df[df.id .== 5, :]; #5, 19
 
 # Run algorithm
-norm_metric, plt_metric, chains = dose_time_prediction(type_prior, times, metric, data);
+norm_metric, plt_metric, chains = dose_time_prediction(type_prior, times, metric, data; use_etas=use_etas);
 
 ### Sample time, dose, and etas from resulting model
-time, dose, etas = sample_dose_time(times, chains, norm_metric)
+time, dose, etas = sample_dose_time(times, chains, norm_metric; use_etas=use_etas)
 
 
 
@@ -50,4 +51,5 @@ for i in preds
     plot!(plt, collect(saveat) .- i[1], y, color=color, alpha=0.1, label=nothing)
 end
 display(plt)
+ind, I = individual_from_df_general(data);
 scatter!(plt, ind.t, ind.y, color=:red, markersize=2, label=nothing)

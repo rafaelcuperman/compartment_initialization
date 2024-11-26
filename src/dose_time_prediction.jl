@@ -21,7 +21,7 @@ Run dose amount and time prediction algorithm
 - `metric`: Metric to be used to compare models: "joint", "ml_post", "ml_prior", "ml_is", "loo", or "waic"
 - `data`: Dataframe with data to be used to build the model
 """
-function dose_time_prediction(type_prior, times, metric, data)
+function dose_time_prediction(type_prior, times, metric, data; use_etas=true)
     pkmodel(args...; kwargs...) = predict_pk(args...; kwargs...);
 
     # Build intervention matrix
@@ -42,11 +42,17 @@ function dose_time_prediction(type_prior, times, metric, data)
     else
         throw(ExceptionError("Unknown type_prior"))
     end;
-    etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
-    priors = Dict(
-        "dose_prior" => dose_prior,
-        "etas_prior" => etas_prior
-        );
+    if use_etas
+        etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
+        priors = Dict(
+            "dose_prior" => dose_prior,
+            "etas_prior" => etas_prior
+            );
+    else
+        priors = Dict(
+            "dose_prior" => dose_prior
+            );
+    end
     
     # Run MCMC
     chains = [];
@@ -54,7 +60,12 @@ function dose_time_prediction(type_prior, times, metric, data)
     for (ix, t) in enumerate(times)
         # Run MCMC
         println("Running chain $ix/$(length(times)). Using t=$t")
-        mcmcmodel = model_dose_etas(pkmodel, ind, I, priors, t; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
+        if use_etas
+            mcmcmodel = model_dose_etas(pkmodel, ind, I, priors, t; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
+        else
+            mcmcmodel = model_dose(pkmodel, ind, I, priors, t; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
+        end
+
         if type_prior == "discrete"
             chain = sample(mcmcmodel, MH(), MCMCThreads(), 100000, 3; progress=true);
         else
@@ -66,17 +77,17 @@ function dose_time_prediction(type_prior, times, metric, data)
     println("Models built")
     
     if metric == "joint"
-        norm_metric, plt_metric = joint_posterior_mean(chains, models);
+        norm_metric, plt_metric = joint_posterior_mean(chains, models; use_etas=use_etas);
     elseif metric == "ml_post"
-        norm_metric, plt_metric = ml_post(chains, models);
+        norm_metric, plt_metric = ml_post(chains, models; use_etas=use_etas);
     elseif metric == "ml_prior"
-        norm_metric, plt_metric = marginal_likelihood_approx(chains, models);
+        norm_metric, plt_metric = marginal_likelihood_approx(chains, models; use_etas=use_etas);
     elseif metric == "ml_is"
-        norm_metric, plt_metric = importance_sampling(chains, models);
+        norm_metric, plt_metric = importance_sampling(chains, models; use_etas=use_etas);
     elseif metric == "loo"
-        norm_metric, _, plt_metric, _ = loo_waic(chains, models);
+        norm_metric, _, plt_metric, _ = loo_waic(chains, models; use_etas=use_etas);
     elseif metric == "waic"
-        _, norm_metric, _, plt_metric = loo_waic(chains, models);
+        _, norm_metric, _, plt_metric = loo_waic(chains, models; use_etas=use_etas);
     else
         throw(ExceptionError("Unknown metric. Choose one of joint, ml_post, ml_prior, ml_is, loo, waic"))
     end;
@@ -96,7 +107,7 @@ Sample dose, time, and etas from resulting model
 - `round_dose`: The obtained dose will be rounded to the nearest multiple of this value
 - `round_etas`: The obtained etas will be rounded to the nearest multiple of this value
 """
-function sample_dose_time(times, chains, prob_models; round_dose=250, round_etas=0.1)
+function sample_dose_time(times, chains, prob_models; use_etas=use_etas, round_dose=250, round_etas=0.1)
     # Pick a model based on the calculated probabilities of models
     time = sample(times, Weights(prob_models));
 
@@ -109,7 +120,11 @@ function sample_dose_time(times, chains, prob_models; round_dose=250, round_etas
 
     # Round dose and etas
     dose = round(dose_etas[1]/round_dose)*round_dose
-    etas = round.(dose_etas[2:end]./round_etas).*round_etas
+    if use_etas
+        etas = round.(dose_etas[2:end]./round_etas).*round_etas
+    else
+        etas = zeros(2)
+    end
 
     return time, dose, etas
 end
