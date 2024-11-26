@@ -4,16 +4,23 @@ using DrWatson
 #####################################################################
 #         Option 1: p(x|θ)p(θ) with θ = mean of posterior           #
 #####################################################################
-function joint_posterior_mean(chains, models)
+function joint_posterior_mean(chains, models; use_etas=true)
     logprobs = [];
     pred_doses = [];
     pred_etas = [];
     for i in 1:length(chains)
         pred_dose = mean(chains[i][:D]);
-        pred_eta = [mean(chains[i][Symbol("etas[1]")]), mean(chains[i][Symbol("etas[2]")])];
-    
         pred_dose = round(pred_dose/250)*250;
-        logprob = loglikelihood(models[i], (D=pred_dose, etas=pred_eta)) + logprior(models[i], (D=pred_dose, etas=pred_eta))
+
+        if use_etas
+            pred_eta = [mean(chains[i][Symbol("etas[1]")]), mean(chains[i][Symbol("etas[2]")])];
+
+            logprob = loglikelihood(models[i], (D=pred_dose, etas=pred_eta)) + logprior(models[i], (D=pred_dose, etas=pred_eta))
+        else
+            pred_eta = zeros(2)
+            logprob = loglikelihood(models[i], (D=pred_dose, )) + logprior(models[i], (D=pred_dose,))
+        end
+
         #println(logjoint(models[i], (D=pred_dose, etas=pred_etas)))
         push!(logprobs, logprob)
         push!(pred_doses, pred_dose)
@@ -38,18 +45,27 @@ end
 # "the variance of the estimator can be very high if the dimension of the conditional variable is high and the number of samples is small."
 #####################################################################
 
-function marginal_likelihood_approx(chains, models)
+function marginal_likelihood_approx(chains, models; use_etas=true)
     mls= [];
     for i in 1:length(chains)
         samples_priors = sample(models[i], Prior(), 10000);
-        samples_priors = hcat(samples_priors[:D].data, samples_priors[Symbol("etas[1]")].data, samples_priors[Symbol("etas[2]")].data);
-        samples_priors = DataFrame(samples_priors, ["D", "eta1", "eta2"]);
+        if use_etas
+            samples_priors = hcat(samples_priors[:D].data, samples_priors[Symbol("etas[1]")].data, samples_priors[Symbol("etas[2]")].data);
+            samples_priors = DataFrame(samples_priors, ["D", "eta1", "eta2"]);
+        else
+            samples_priors = hcat(samples_priors[:D].data);
+            samples_priors = DataFrame(samples_priors, ["D"])
+        end
     
         ll = 0;
         #ml = [];
         for (ix, row) in enumerate(eachrow(samples_priors))
-            ll += exp(loglikelihood(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]])))
-            #push!(ml, ll/ix)
+            if use_etas
+                ll += exp(loglikelihood(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]])))
+                #push!(ml, ll/ix)
+            else
+                ll += exp(loglikelihood(models[i], (D = row["D"],)))
+            end
         end
         #println(ml[end])
         ml = ll/ size(samples_priors, 1)
@@ -81,16 +97,24 @@ end
 # with mean and stdev their respective values from the chains
 #####################################################################
 
-function importance_sampling(chains, models)
+function importance_sampling(chains, models; use_etas=true)
     mls_is = [];
     for i in 1:length(chains)
-        samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
-        samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
-    
-        # Build normal distributions based on sample mean and stdev
-        posterior_dose = Normal(mean(samples_posterior.D), std(samples_posterior.D));
-        posterior_eta1 = Normal(mean(samples_posterior.eta1), std(samples_posterior.eta1));
-        posterior_eta2 = Normal(mean(samples_posterior.eta2), std(samples_posterior.eta2));
+        if use_etas
+            samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
+            samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
+        
+            # Build normal distributions based on sample mean and stdev
+            posterior_dose = Normal(mean(samples_posterior.D), std(samples_posterior.D));
+            posterior_eta1 = Normal(mean(samples_posterior.eta1), std(samples_posterior.eta1));
+            posterior_eta2 = Normal(mean(samples_posterior.eta2), std(samples_posterior.eta2));
+        else
+            samples_posterior = hcat(vcat(chains[i][1:end][:D].data...));
+            samples_posterior = DataFrame(samples_posterior, ["D"]);
+        
+            # Build normal distributions based on sample mean and stdev
+            posterior_dose = Normal(mean(samples_posterior.D), std(samples_posterior.D));
+        end
     
         #x = 0:1:4000;
         #plt_dose = plot(x, pdf.(posterior_dose, x), title="Dose posterior", label="", yticks=nothing);
@@ -101,16 +125,26 @@ function importance_sampling(chains, models)
     
         #samples_posterior = last(samples_posterior, 10000);
         n=10000
-        samples_posterior = DataFrame(hcat(rand(posterior_dose, n), rand(posterior_eta1, n), rand(posterior_eta2, n)), ["D", "eta1", "eta2"])
+        if use_etas
+            samples_posterior = DataFrame(hcat(rand(posterior_dose, n), rand(posterior_eta1, n), rand(posterior_eta2, n)), ["D", "eta1", "eta2"])
+        else
+            samples_posterior = DataFrame(hcat(rand(posterior_dose, n)), ["D"])
+        end
         ratio = 0;
         for (ix, row) in enumerate(eachrow(samples_posterior))
             #ljoint = logjoint(models[i], (D = row["D"], etas = [row["eta1"], row["eta2"]]))
             #proposal = logpdf(posterior_dose, row["D"]) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
             #ratio += exp(ljoint)
             D = round(row["D"]/250)*250;
-            llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
-            lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
-            logproposal = logpdf(posterior_dose, D) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
+            if use_etas
+                llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+                lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+                logproposal = logpdf(posterior_dose, D) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
+            else
+                llikelihood = loglikelihood(models[i], (D = D,))
+                lprior = logprior(models[i], (D = D,))
+                logproposal = logpdf(posterior_dose, D)
+            end
             ratio += exp(llikelihood + lprior - logproposal)
         end
         #println(ml[end])
@@ -129,7 +163,7 @@ end
 # https://arviz-devs.github.io/ArviZ.jl/stable/api/stats/#PosteriorStats.ModelComparisonResult
 #####################################################################
 
-function loo_waic(chains, models)
+function loo_waic(chains, models; use_etas=true)
     loos = [];
     waics = [];
     idatas = Dict();
@@ -166,11 +200,16 @@ end
 # and use those θ to approximate the integral by discretizing the sum
 #####################################################################
 
-function ml_post(chains, models)
+function ml_post(chains, models; use_etas=true)
     mls_post = [];
     for i in 1:length(chains)
-        samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
-        samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
+        if use_etas
+            samples_posterior = hcat(vcat(chains[i][1:end][:D].data...), vcat(chains[i][1:end][Symbol("etas[1]")].data...), vcat(chains[i][1:end][Symbol("etas[2]")].data...));
+            samples_posterior = DataFrame(samples_posterior, ["D", "eta1", "eta2"]);
+        else
+            samples_posterior = hcat(vcat(chains[i][1:end][:D].data...));
+            samples_posterior = DataFrame(samples_posterior, ["D"]);
+        end
 
         n=min(10000, size(samples_posterior,1));
         samples_posterior = samples_posterior[shuffle(1:nrow(samples_posterior))[1:n], :];
@@ -181,8 +220,13 @@ function ml_post(chains, models)
             #proposal = logpdf(posterior_dose, row["D"]) + logpdf(posterior_eta1, row["eta1"]) + logpdf(posterior_eta2, row["eta2"])
             #ratio += exp(ljoint)
             D = round(row["D"]/250)*250;
-            llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
-            lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+            if use_etas
+                llikelihood = loglikelihood(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+                lprior = logprior(models[i], (D = D, etas = [row["eta1"], row["eta2"]]))
+            else
+                llikelihood = loglikelihood(models[i], (D = D,))
+                lprior = logprior(models[i], (D = D,))
+            end
             ll += exp(llikelihood + lprior)
         end
         #println(ml[end])

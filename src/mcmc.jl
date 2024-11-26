@@ -2,7 +2,7 @@ using DrWatson
 @quickactivate "compartment-initialization"
 
 using Turing
-using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
+using DeepCompartmentModels
 using Plots
 
 function plot_priors_u0(priors)
@@ -190,6 +190,32 @@ end
 
     return nothing
 end
+
+
+@model function model_dose(pkmodel, ind, I, priors, t, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
+    D ~ priors["dose_prior"]
+
+    # The dosing callback function requires integer values
+    D_ = round(D)
+    t_ = round(t)
+
+    # Regenerate initial dose
+    I_ = copy(I)
+    I_ = vcat([0. 0. 0. 0.], I_)  
+
+    # Shift all the dosing times by t_ (time of second dose) except the initial dose that is at t=0
+    I_[2:end, 1] = I_[2:end, 1] .+ t_
+    I_[1,2] = D_
+    I_[1,3] = D_*60
+    I_[1,4] = 1/60
+
+    predicted = pkmodel(ind, I_, ind.t .+ t_, args...; save_idxs=[1], σ=0, etas=zeros(2), u0=zeros(2), tspan=(-0.1, ind.t[end] .+ t_), kwargs...)
+
+    ind.y ~ MultivariateNormal(vec(predicted), sigma_additive .+ vec(predicted).*sigma_proportional)
+
+    return nothing
+end
+
 
 @model function model_u01_etas(pkmodel, ind, I, priors, args...; sigma_additive=5, sigma_proportional=0.17, kwargs...)
     u01 ~ priors["u01_prior"]

@@ -12,7 +12,7 @@ include(srcdir("metrics.jl"));
 
 save_plots = false;
 
-type_prior = "discrete";
+type_prior = "continuous";
 pk_model_data = "bjorkman"; # Model that was used to generate the data
 pk_model_selection = "bjorkman"; # Model that will be used to model the data and make predictions
 
@@ -74,10 +74,8 @@ else
     throw(ExceptionError("Unknown type_prior"))
 end;
 
-etas_prior = MultivariateNormal(zeros(2), build_omega_matrix());
 priors = Dict(
-    "dose_prior" => dose_prior,
-    "etas_prior" => etas_prior
+    "dose_prior" => dose_prior
     );
 plt_dose = plot_priors_dose(priors);
 display(plt_dose)
@@ -88,7 +86,7 @@ models = [];
 for (ix, t) in enumerate(times)
     # Run MCMC
     println("Running chain $ix/$(length(times)). Using t=$t")
-    mcmcmodel = model_dose_etas(pkmodel, ind, I, priors, t; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
+    mcmcmodel = model_dose(pkmodel, ind, I, priors, t; sigma_additive=sigma_additive, sigma_proportional=sigma_proportional);
     if type_prior == "discrete"
         chain = sample(mcmcmodel, MH(), MCMCThreads(), 100000, 3; progress=true);
     else
@@ -110,29 +108,13 @@ plt_dose = density(vcat(chains[1][:D].data...), label="t=24", color = "blue", ti
 density!(plt_dose, vcat(chains[2][:D].data...), label="t=48", color = "black");
 density!(plt_dose, vcat(chains[3][:D].data...), label="t=72",  color = "green");
 
-plt_eta1 = density(vcat(chains[1][Symbol("etas[1]")].data...), label=nothing, color = "blue", title="eta1", yticks=nothing);
-density!(plt_eta1, vcat(chains[2][Symbol("etas[1]")].data...), label=nothing, color = "black");
-density!(plt_eta1, vcat(chains[3][Symbol("etas[1]")].data...), label=nothing, color = "green");
-
-plt_eta2 = density(vcat(chains[1][Symbol("etas[2]")].data...), label=nothing, color = "blue",  title="eta2", yticks=nothing);
-density!(plt_eta2, vcat(chains[2][Symbol("etas[2]")].data...), label=nothing, color = "black");
-density!(plt_eta2, vcat(chains[3][Symbol("etas[2]")].data...), label=nothing, color = "green");
-
-plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
+plot(plt_dose) 
 
 
 # Plot the distribution of each chain
 plt_dose = density(chains[1][:D].data, label="t=24", color = "blue", title="Dose", yticks=nothing);
 density!(plt_dose, chains[2][:D].data, label="t=48", color = "black");
 density!(plt_dose, chains[3][:D].data, label="t=72",  color = "green");
-
-plt_eta1 = density(chains[1][Symbol("etas[1]")].data, label=nothing, color = "blue", title="eta1", yticks=nothing);
-density!(plt_eta1, chains[2][Symbol("etas[1]")].data, label=nothing, color = "black");
-density!(plt_eta1, chains[3][Symbol("etas[1]")].data, label=nothing, color = "green");
-
-plt_eta2 = density(chains[1][Symbol("etas[2]")].data, label=nothing, color = "blue",  title="eta2", yticks=nothing);
-density!(plt_eta2, chains[2][Symbol("etas[2]")].data, label=nothing, color = "black");
-density!(plt_eta2, chains[3][Symbol("etas[2]")].data, label=nothing, color = "green");
 
 # Remove duplicated labels in plot
 labels = [x[:label] for x in plt_dose.series_list];
@@ -154,38 +136,38 @@ for i in indices
     plt_dose.series_list[i][:label] = ""
 end;
 
-plot(plt_dose, plt_eta1, plt_eta2, layout=(3,1)) 
+plot(plt_dose) 
 
 
 #####################################################################
 #         Option 1: p(x|θ)p(θ) with θ = mean of posterior           #
 #####################################################################
 println("Calculating joint probability with posterior mean...")
-norm_mean, plt_mean = joint_posterior_mean(chains, models);
+norm_mean, plt_mean = joint_posterior_mean(chains, models; use_etas=false);
 
 #####################################################################
 #                       Option 2: simple MCMC                       #
 #####################################################################
 println("Calculating marginal likelihood with prior distributions...")
-norm_ml, plt_ml = marginal_likelihood_approx(chains, models);
+norm_ml, plt_ml = marginal_likelihood_approx(chains, models; use_etas=false);
 
 #####################################################################
 #                   Option 3: importance sampling                   #
 #####################################################################
 println("Calculating marginal likelihood with importance sampling...")
-norm_is, plt_is = importance_sampling(chains, models);
+norm_is, plt_is = importance_sampling(chains, models; use_etas=false);
 
 #####################################################################
 #                   Option 4 & 5: ELPD LOO & WAIC                   #
 #####################################################################
 println("Calculating LOO and WAIC...")
-norm_loos, norm_waics, plt_loo, plt_waic = loo_waic(chains, models);
+norm_loos, norm_waics, plt_loo, plt_waic = loo_waic(chains, models; use_etas=false);
 
 #####################################################################
 #         Option 6: Marginal Likelihood sampled from posterior      #
 #####################################################################
-println("Calculating marginal likelihood with posterior samples...")
-norm_post, plt_post = ml_post(chains, models);
+println("Calculating marginal likelihood with psoterior samples...")
+norm_post, plt_post = ml_post(chains, models; use_etas=false);
 
 #####################################################################
 #                   Plot all the results

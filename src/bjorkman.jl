@@ -1,7 +1,7 @@
 using DrWatson
 @quickactivate "compartment-initialization"
 
-using DeepCompartmentModels: BasicIndividual, generate_dosing_callback
+using DeepCompartmentModels
 
 sigma_additive = 5;
 sigma_proportional = 0;
