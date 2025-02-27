@@ -21,7 +21,7 @@ Run dose amount and time prediction algorithm
 - `metric`: Metric to be used to compare models: "joint", "ml_post", "ml_prior", "ml_is", "loo", or "waic"
 - `data`: Dataframe with data to be used to build the model
 """
-function dose_time_prediction(type_prior, times, metric, data; use_etas=true)
+function dose_time_prediction(type_prior, times, metric, data; use_etas=true, num_chains=3, plot_metric=true)
     pkmodel(args...; kwargs...) = predict_pk(args...; kwargs...);
 
     # Build intervention matrix
@@ -67,9 +67,9 @@ function dose_time_prediction(type_prior, times, metric, data; use_etas=true)
         end
 
         if type_prior == "discrete"
-            chain = sample(mcmcmodel, MH(), MCMCThreads(), 100000, 3; progress=true);
+            chain = sample(mcmcmodel, MH(), MCMCThreads(), 100000, num_chains; progress=true);
         else
-            chain = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, 3; progress=true);
+            chain = sample(mcmcmodel, NUTS(0.65), MCMCThreads(), 2000, num_chains; progress=true);
         end
         push!(chains, chain)
         push!(models, mcmcmodel)
@@ -92,7 +92,9 @@ function dose_time_prediction(type_prior, times, metric, data; use_etas=true)
         throw(ExceptionError("Unknown metric. Choose one of joint, ml_post, ml_prior, ml_is, loo, waic"))
     end;
     
-    display(plt_metric)
+    if plot_metric
+        display(plt_metric)
+    end
 
     return norm_metric, plt_metric, chains
 end;

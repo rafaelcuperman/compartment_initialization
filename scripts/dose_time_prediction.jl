@@ -5,7 +5,7 @@ include(srcdir("dose_time_prediction.jl"));
 
 include(srcdir("bjorkman.jl")); # Model that will be used to make predictions
 use_etas = true;
-type_prior = "discrete";
+type_prior = "continuous";
 times = [24, 48, 72];
 metric = "ml_is"; # joint, ml_post, ml_prior, ml_is, loo, waic
 

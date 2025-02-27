@@ -14,7 +14,7 @@ save_plots = false;
 
 type_prior = "discrete";
 pk_model_data = "bjorkman"; # Model that was used to generate the data
-pk_model_selection = "bjorkman"; # Model that will be used to model the data and make predictions
+pk_model_selection = "bjorkman"; # Model that will be used to model the data and make predictions (bjorkman, mceneny, or simple)
 
 df = CSV.read(datadir("exp_pro", "variable_times", "$(pk_model_data)_population_1h.csv"), DataFrame);
 df.ffm = df.weight*(1-0.3);
@@ -49,7 +49,7 @@ end;
 
 df_ = df[df.id .== 5, :]; #5, 19
 
-between_dose = 1; #Time between dose for measurments used for MCMC
+between_dose = 24; #Time between dose for measurments used for MCMC
 df_ = filter(row -> (row.time % between_dose == 0) .| (row.time == 1), df_);
 
 metadata = eval(Meta.parse(df_[1,:metadata]))
@@ -192,6 +192,11 @@ norm_post, plt_post = ml_post(chains, models);
 #####################################################################
 
 println("Real time: $(metadata["time"])")
-plot(plt_mean, plt_post, plt_ml, plt_is, plt_loo, plt_waic, layout=(2,3), size=(800,500))
+display(plot(plt_mean, plt_post, plt_ml, plt_is, plt_loo, plt_waic, layout=(2,3), size=(800,500)))
+
+metric_names = ["Mean of posterior", "Sampled from posterior", "ML approximation", "Importance sampling", "LOO", "WAIC"];
+println(DataFrame(hcat(metric_names, round.(vcat(norm_mean', norm_post', norm_ml', norm_is', norm_loos', norm_waics'), digits=3)), ["Metric", "24h", "48h", "72h"]))
+
+
 #plot(plt1, plt2, plt4, plt5, layout=(2,2), size=(800,500))
 #plot(plt1, plt2, plt5, layout=(2,2), size=(800,500))
