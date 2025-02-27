@@ -10,7 +10,7 @@ using DeepCompartmentModels
 include(srcdir("create_df_from_I.jl"));
 
 # Read population data
-df = CSV.read(datadir("exp_raw", "dcm/population_data.csv"), DataFrame);
+df = CSV.read(datadir("exp_raw", "population_data.csv"), DataFrame);
 df = first(df, 50); # First n patients
 df.ffm = df.weight .* (1-0.3);
 
