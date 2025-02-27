@@ -7,12 +7,12 @@ include(srcdir("bjorkman.jl")); # Model that will be used to make predictions
 
 between_dose = 1; #Time between dose for measurments used for MCMC
 use_etas = true;
-type_prior = "continuous";
+type_prior = "discrete";
 times = [24, 48, 72];
 metric = "ml_is"; # joint, ml_post, ml_prior, ml_is, loo, waic
 
 # Read data
-df = CSV.read(datadir("exp_pro", "variable_times", "mceneny_population_1h.csv"), DataFrame);
+df = CSV.read(datadir("exp_pro", "variable_times", "bjorkman_population_1h.csv"), DataFrame);
 ids = unique(df.id);
 
 times_real = [];
@@ -68,4 +68,4 @@ plt = bar(means',
 display(plt);
 
 
-#CSV.write("population_continuous.csv", DataFrame(hcat(hcat(probs...)', times_real, times_indices), ["24", "48", "72", "real_time", "real_index"]))
+#CSV.write("population_continuous_bjorkman.csv", DataFrame(hcat(hcat(probs...)', times_real, times_indices), ["24", "48", "72", "real_time", "real_index"]))
