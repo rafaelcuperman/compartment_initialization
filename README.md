@@ -1,16 +1,18 @@
-# compartment-initialization
+This is the code for the prophylactic dose and time prediction algorithm.
+The main code is in `src/dose_time_prediction.jl`.
+
+An example on how to use the code on a single individual can be found in `scripts/dose_time_prediction.jl`.
+
+# How to use this code
 
 This code base is using the [Julia Language](https://julialang.org/) and
 [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
 > compartment-initialization
 
-It is authored by rafaelcuperman.
-
 To (locally) reproduce this project, do the following:
 
-0. Download this code base. Notice that raw data are typically not included in the
-   git-history and may need to be downloaded independently.
+0. Download this code base.
 1. Open a Julia console and do:
    ```
    julia> using Pkg
@@ -28,3 +30,5 @@ using DrWatson
 @quickactivate "compartment-initialization"
 ```
 which auto-activate the project and enable local path handling from DrWatson.
+
+
